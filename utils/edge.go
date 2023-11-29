@@ -29,5 +29,4 @@ func (e Edge) EistsInterval(f string, l string) bool {
 	end, _ := strconv.ParseInt(e.end, 0, 64)
 
 	return (first >= start && first < end || last >= start && last < end)
-	//postgresql://root@localhost:26257/defaultdb?sslmode=disable"
 }
