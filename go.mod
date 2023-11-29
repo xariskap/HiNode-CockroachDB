@@ -1,4 +1,4 @@
-module hinodeCRDB
+module hinode
 
 go 1.21.4
 
