@@ -22,7 +22,7 @@ func (e Edge) String() string {
 	return fmt.Sprintf("label: %v\nweight: %v\notherEnd: %v\nstart: %v\nend: %v", e.label, e.weight, e.otherEnd, e.start, e.end)
 }
 
-func (e Edge) EistsInterval(f string, l string) bool {
+func (e Edge) ExistsInterval(f string, l string) bool {
 	first, _ := strconv.ParseInt(f, 0, 64)
 	last, _ := strconv.ParseInt(f, 0, 64)
 	start, _ := strconv.ParseInt(e.start, 0, 64)
