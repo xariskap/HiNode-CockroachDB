@@ -82,5 +82,5 @@ func (v *Vertex) SetValue(attrName string, attrValue string) {
 }
 
 func (v Vertex) String() string {
-	return fmt.Sprintf("Vertex{\nvid: %v\ntimestamp: %v\nattributes: %v\noutgoing_edges: %v\nincoming_edges: %v}", v.vid, v.timestamp, v.attributes, v.outgoing_edges, v.incoming_edges)
+	return fmt.Sprintf("Vertex{vid: %v, timestamp: %v, attributes: %v, noutgoing_edges: %v, incoming_edges: %v}", v.vid, v.timestamp, v.attributes, v.outgoing_edges, v.incoming_edges)
 }
