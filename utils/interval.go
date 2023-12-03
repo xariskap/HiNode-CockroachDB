@@ -12,9 +12,11 @@ type Interval struct {
 	end   string
 }
 
+
+
 func NewInterval(value string, start string, end string) Interval {
-	if strings.EqualFold("infinity", value) {
-		value = "2147483647" // int32 max value
+	if strings.EqualFold("infinity", end) {
+		end = "2147483647" // int32 max value
 	}
 	return (Interval{value, start, end})
 }
@@ -37,4 +39,10 @@ func (i Interval) CompareTo(interv Interval) int {
 	return 0
 }
 
-// TODO Stab()
+func (i Interval) Stab(timestamp string) bool {
+	start, _ := strconv.Atoi(i.start)
+	end, _ := strconv.Atoi(i.end)
+	ts, _ := strconv.Atoi(timestamp)
+
+	return ts >= start && ts < end
+}

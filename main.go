@@ -6,25 +6,26 @@ import (
 )
 
 func main() {
-	edge := utils.NewEdge("label", "1", "2", "3", "4")
-	edge2 := utils.NewEdge("label", "1", "2", "3", "4")
-	// fmt.Println(edge.String())
-	vertex := utils.NewVertex()
+	// Create instances using the constructors
+	interval := utils.NewInterval("value1", "0", "5")
+	interval2 := utils.NewInterval("value2", "10", "15")
+	interval3 := utils.NewInterval("value3", "15", "20")
+	var intervalcomb []utils.Interval
+	intervalcomb = append(intervalcomb, interval2, interval3)
+	edge := utils.NewEdge("label1", "1", "target1", "0", "10")
 
-	hashmap := map[string]string{ //create a hashmap using map literal
-		"apple":  "10",
-		"mango":  "20",
-		"banana": "30", //assign the values to the key
-	}
+	// Create a Dianode using the Dianode constructor
+	dianode := utils.NewDianode(
+		"1",
+		"0",
+		"10",
+		map[string][]utils.Interval{"attr1": {interval}},
+		map[string][]utils.Edge{"target1": {edge}},
+		map[string][]utils.Edge{"source1": {edge}},
+	)
 
-	vertex.AddOutgoingEdge("1", edge)
-	vertex.AddIncomingEdge("2", edge2)
-	vertex.SetAttributes(hashmap)
-	vertexAtrr := vertex.GetAttributes()
-	vertexNeigh := vertex.GetNeighbors()
-	vertex.AddIncomingEdge("3", edge)
-	vertexInc := vertex.GetIncomingEdges()
-	fmt.Println("Vertex Attributes: ", vertexAtrr)
-	fmt.Println("Vertex Neighbors: ", vertexNeigh)
-	fmt.Println("Vertex Incoming: ", vertexInc)
+	// Print the created instances
+	dianode.InsertAttribute("attr1", intervalcomb)
+	fmt.Println(dianode.GetAttributes())
+	fmt.Println(dianode.Search("attr1", "10"))
 }
