@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"sort"
+	"strconv"
 )
 
 type Dianode struct {
@@ -18,7 +19,45 @@ func NewDianode(id string, s string, e string, attr map[string][]Interval, out_e
 	return Dianode{id, s, e, attr, out_edges, in_edges}
 }
 
-// TODO convertToVertex
+
+func (d Dianode) convertToVertex(timestamp string) Vertex {
+
+	ver := NewVertex()
+	ver.SetVid(d.vid)
+	ver.SetTimestamp(timestamp)
+	ts, _ := strconv.Atoi(timestamp)
+
+	// copy attributes
+	for attrName, intervals := range(d.attributes){
+		value := intervals[d.Search(attrName, timestamp)].value
+		ver.SetValue(attrName, value)
+	}
+
+	//copy outgoing edges
+	for targetID := range(d.outgoing_edges){
+		for _, edge := range(d.outgoing_edges[targetID]){
+			estart, _ := strconv.Atoi(edge.start)
+			eend, _ := strconv.Atoi(edge.end)
+			if ts >= estart && ts < eend{
+				ver.AddOutgoingEdge(targetID, edge)
+				break
+			}
+		}
+	}
+	// copy incoming edges
+	for targetID := range d.incoming_edges {
+		for _, edge := range(d.incoming_edges[targetID]){
+			estart, _ := strconv.Atoi(edge.start)
+			eend, _ := strconv.Atoi(edge.end)
+			if ts >= estart && ts < eend{
+				ver.AddOutgoingEdge(targetID, edge)
+				break
+			}
+		}
+	}
+
+	return ver
+}
 
 func (d Dianode) GetVid() string {
 	return d.vid
@@ -108,4 +147,46 @@ func (d *Dianode) String() string {
 	return fmt.Sprintf("Dianode{vid: %v, start: %v, end: %v, attributes: %v, outgoing_edges: %v, incoming_edges: %v}", d.vid, d.start, d.end, d.attributes, d.outgoing_edges, d.incoming_edges)
 }
 
-//TODO keepValuesInInterval
+// NOT FINISHED
+func (d *Dianode) KeepValuesInInterval(first, last string){
+	startInt, _ := strconv.Atoi(d.start)
+	firstInt, _ := strconv.Atoi(first)
+	endInt, _ := strconv.Atoi(d.end)
+	lastInt, _ := strconv.Atoi(last)
+
+	d.start = func() string {
+		if startInt < firstInt {
+			return first
+		}
+		return d.start
+	}()
+
+	d.start = func() string {
+		if endInt > lastInt {
+			return last
+		}
+		return d.end
+	}()
+}
+
+func (d *Dianode) Merge(dn Dianode){
+	d.end = dn.end
+
+	for attrName, intervals := range dn.attributes {
+		if existingIntervals, ok := d.attributes[attrName]; ok {
+			d.attributes[attrName] = append(existingIntervals, intervals...)
+		} else {
+			d.attributes[attrName] = intervals
+		}
+	}
+
+	for sourceID, edges := range dn.incoming_edges {
+		if existingEdges, ok := d.incoming_edges[sourceID]; ok {
+			d.incoming_edges[sourceID] = append(existingEdges, edges...)
+		} else {
+			d.incoming_edges[sourceID] = edges
+		}
+	}
+
+
+}
