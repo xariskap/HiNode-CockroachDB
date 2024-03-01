@@ -125,7 +125,7 @@ func (d *Dianode) Search(attrName, timestamp string) int {
 	}
 
 	index := sort.Search(len(attrList), func(i int) bool {
-		return attrList[i].start >= timestamp
+		return attrList[i].Start >= timestamp
 	})
 
 	if attrList[index].Stab(timestamp) {

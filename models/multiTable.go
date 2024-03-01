@@ -1,9 +1,12 @@
 package models
 
 import (
+	"bufio"
 	"context"
-	"fmt"
+	"hinode/utils"
 	"log"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,35 +22,35 @@ func NewMultiTable(db string, conn *pgx.Conn) MultiTable {
 	return MultiTable{db, conn}
 }
 
-func (mg MultiTable) GetDatabaseName() string {
-	return mg.db
+func (mt MultiTable) GetDatabaseName() string {
+	return mt.db
 }
 
 // returns the rows of the given query
-func (mg MultiTable) Query(sql string, values ...any) (pgx.Rows, error) {
-	rows, err := mg.conn.Query(context.Background(), sql, values...)
+func (mt MultiTable) Query(sql string, values ...any) (pgx.Rows, error) {
+	rows, err := mt.conn.Query(context.Background(), sql, values...)
 	return rows, err
 }
 
-func (mg MultiTable) QueryRow(sql string, values ...any) pgx.Row {
-	row := mg.conn.QueryRow(context.Background(), sql, values...)
+func (mt MultiTable) QueryRow(sql string, values ...any) pgx.Row {
+	row := mt.conn.QueryRow(context.Background(), sql, values...)
 	return row
 }
 
-func (mg MultiTable) ExecQuery(sql string, values ...any) error {
-	_, err := mg.conn.Exec(context.Background(), sql, values...)
+func (mt MultiTable) ExecQuery(sql string, values ...any) error {
+	_, err := mt.conn.Exec(context.Background(), sql, values...)
 	return err
 }
 
-func (mg MultiTable) ExecSQL(sql []string) {
+func (mt MultiTable) ExecSQL(sql []string) {
 	for _, stmt := range sql {
-		if _, err := mg.conn.Exec(context.Background(), stmt); err != nil {
+		if _, err := mt.conn.Exec(context.Background(), stmt); err != nil {
 			log.Fatal(err)
 		}
 	}
 }
 
-func (mg MultiTable) ExecSQLConcurrently(sql []string) {
+func (mt MultiTable) ExecSQLConcurrently(sql []string) {
 	var wg sync.WaitGroup
 
 	for _, stmt := range sql {
@@ -56,7 +59,7 @@ func (mg MultiTable) ExecSQLConcurrently(sql []string) {
 		go func(stmt string) {
 			defer wg.Done()
 
-			if _, err := mg.conn.Exec(context.Background(), stmt); err != nil {
+			if _, err := mt.conn.Exec(context.Background(), stmt); err != nil {
 				log.Println(err)
 			}
 		}(stmt)
@@ -66,13 +69,14 @@ func (mg MultiTable) ExecSQLConcurrently(sql []string) {
 
 // ConvertToEdgeList()
 
-func (mg MultiTable) CreateSchema() {
+func (mt MultiTable) CreateSchema() {
 	// Create the schema using SQL statements
 	sqlStatements := []string{
-		"DROP DATABASE IF EXISTS " + mg.db,
-		"CREATE DATABASE " + mg.db,
-		"USE " + mg.db,
+		"DROP DATABASE IF EXISTS " + mt.db,
+		"CREATE DATABASE " + mt.db,
+		"USE " + mt.db,
 		"CREATE TABLE vertex (vid STRING, vstart STRING, vend STRING)",
+		"CREATE TABLE attributes (vid STRING, vattr JSONB)",
 	}
 
 	//create indexes
@@ -82,46 +86,79 @@ func (mg MultiTable) CreateSchema() {
 	// 	"CREATE INDEX ON dianode (vid, start, eend)",
 	// }
 
-	start := time.Now()
+	//start := time.Now()
 
-	mg.ExecSQL(sqlStatements)
-	fmt.Printf("SQL execution took %s\n", time.Since(start))
-	//mg.ExecSQLConcurrently(sqlStatemetns2)
+	mt.ExecSQL(sqlStatements)
+	//fmt.Printf("SQL execution took %s\n", time.Since(start))
+	//mt.ExecSQLConcurrently(sqlStatemetns2)
 	//fmt.Printf("\nSQL execution took %s\n", time.Since(start))
 
 }
 
-
-func (mg MultiTable) InsertVertex(vid, vstart string) {
+func (mt MultiTable) InsertVertex(vid, vstart string) {
 	var s, e string
 
 	// search for a vertex with a higher end time than the provided start time
-	err := mg.QueryRow("SELECT vstart, vend FROM vertex WHERE vid = $1 AND vend >= $2 ORDER BY vend ASC", vid, vstart).Scan(&s,&e)
+	err := mt.QueryRow("SELECT vstart, vend FROM vertex WHERE vid = $1 AND vend >= $2 ORDER BY vend ASC", vid, vstart).Scan(&s, &e)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal(err)
 	}
-	fmt.Println(e, "eeee")
 
-	// if a vertex is found, delete it
-	//UPDATE VERTEX NOT DELETE
+	// if vertex is found, update it
 	if e != "" {
-		if err := mg.ExecQuery("UPDATE vertex SET vend = $1 WHERE vid = $2 AND vstart = $3",vstart, vid, s); err != nil{
+		if err := mt.ExecQuery("UPDATE vertex SET vend = $1 WHERE vid = $2 AND vstart = $3", vstart, vid, s); err != nil {
 			log.Fatal("Failed to update vertex: ", err)
 		}
 	}
 
 	// insert new vertex
-	err = mg.ExecQuery("INSERT INTO vertex (vid, vstart, vend) VALUES ($1, $2, $3)", vid, vstart, time.Now().Format(time.RFC3339Nano))
-	if err != nil{
+	err = mt.ExecQuery("INSERT INTO vertex (vid, vstart, vend) VALUES ($1, $2, $3)", vid, vstart, time.Now().Format(time.RFC3339Nano))
+	if err != nil {
 		log.Fatal("Failed to insert vertex: ", err)
 	}
 
 }
 
+func (mt MultiTable) InsertAttribute(vID, label, attr string, interval utils.Interval) {
+	jsonData := utils.AttributeToJSON(vID, label, attr, interval)
 
-// func (mg MultiTable) GetAllAliveVertices(first, last string) {
+	err := mt.ExecQuery("INSERT INTO attributes (vid, vattr) VALUES ($1, $2)", vID, jsonData)
+	if err != nil {
+		log.Fatal("Failed to insert attribute: ", err)
+	}
+}
 
-// 	rows := mg.Query("SELECT vid, start, eend FROM dianode")
+func (mt MultiTable) ParseInput(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer file.Close()
+
+	// var vid, vstart string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+
+		line := scanner.Text()
+		tokens := strings.Fields(line)
+
+		if strings.HasPrefix(line, "vertex") {
+			mt.InsertVertex(tokens[1], tokens[3])
+		} else if strings.HasPrefix(line, "delete vertex") {
+			if err := mt.ExecQuery("UPDATE vertex SET vend = $1 WHERE vid = $2", tokens[3], tokens[2]); err != nil {
+				log.Fatal("Failed to update vertex: ", err)
+			}
+		} else if strings.HasPrefix(line, "change vertex") {
+			interv := utils.NewInterval(tokens[4], tokens[5], "2099")
+			mt.InsertAttribute(tokens[2], tokens[3], tokens[4], interv)
+		}
+	}
+}
+
+// func (mt MultiTable) GetAllAliveVertices(first, last string) {
+
+// 	rows := mt.Query("SELECT vid, start, eend FROM dianode")
 // 	defer rows.Close()
 
 // }

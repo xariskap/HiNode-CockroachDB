@@ -1,0 +1,20 @@
+vertex 181 creationDate 2010-01-01T00:46:06.678+00:00
+change vertex 181 firstName Zdenek 2010-01-01T00:46:06.678+00:00
+change vertex 181 lastName Herzigová 2010-01-01T00:46:06.678+00:00
+change vertex 181 gender female 2010-01-01T00:46:06.678+00:00
+change vertex 181 birthday 1984-12-01 2010-01-01T00:46:06.678+00:00
+change vertex 181 locationIP 31.132.169.41 2010-01-01T00:46:06.678+00:00
+change vertex 181 browserUsed Safari 2010-01-01T00:46:06.678+00:00
+change vertex 181 LocationCityId 1086 2010-01-01T00:46:06.678+00:00
+change vertex 181 language cs;en 2010-01-01T00:46:06.678+00:00
+change vertex 181 email Zdenek181@hotmail.com;Zdenek181@gmx.com;Zdenek181@pitbullmail.com 2010-01-01T00:46:06.678+00:00
+vertex 919 creationDate 2010-01-01T01:54:03.489+00:00
+change vertex 919 firstName Ahmed 2010-01-01T01:54:03.489+00:00
+change vertex 919 lastName Akef 2010-01-01T01:54:03.489+00:00
+change vertex 919 gender male 2010-01-01T01:54:03.489+00:00
+change vertex 919 birthday 1983-02-14 2010-01-01T01:54:03.489+00:00
+change vertex 919 locationIP 41.223.20.32 2010-01-01T01:54:03.489+00:00
+change vertex 919 browserUsed Opera 2010-01-01T01:54:03.489+00:00
+change vertex 919 LocationCityId 1106 2010-01-01T01:54:03.489+00:00
+change vertex 919 language ar;en 2010-01-01T01:54:03.489+00:00
+change vertex 919 email Ahmed919@gmail.com;Ahmed919@gmx.com;Ahmed919@hotmail.com 2010-01-01T01:54:03.489+00:00
