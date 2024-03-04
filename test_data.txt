@@ -18,3 +18,20 @@ change vertex 919 browserUsed Opera 2010-01-01T01:54:03.489+00:00
 change vertex 919 LocationCityId 1106 2010-01-01T01:54:03.489+00:00
 change vertex 919 language ar;en 2010-01-01T01:54:03.489+00:00
 change vertex 919 email Ahmed919@gmail.com;Ahmed919@gmx.com;Ahmed919@hotmail.com 2010-01-01T01:54:03.489+00:00
+edge 181 919 creationDate 2010-01-22T17:53:41.518+00:00
+vertex 111 creationDate 2011-02-01T00:46:06.678+00:00
+change vertex 111 firstName Xaris 2010-01-01T00:46:06.678+00:00
+change vertex 111 lastName Kapeletiotis 2010-01-01T00:46:06.678+00:00
+change vertex 111 gender female 2010-01-01T00:46:06.678+00:00
+change vertex 111 browserUsed Safari 2010-01-01T00:46:06.678+00:00
+change vertex 111 LocationCityId 1086 2010-01-01T00:46:06.678+00:00
+change vertex 111 language cs;en 2010-01-01T00:46:06.678+00:00
+vertex 222 creationDate 2012-02-01T00:46:06.678+00:00
+change vertex 222 firstName Alex 2010-01-01T00:46:06.678+00:00
+change vertex 222 lastName Kapeletiotis 2010-01-01T00:46:06.678+00:00
+change vertex 222 gender female 2010-01-01T00:46:06.678+00:00
+change vertex 222 birthday 1984-12-01 2010-01-01T00:46:06.678+00:00
+change vertex 222 locationIP 31.132.169.41 2010-01-01T00:46:06.678+00:00
+change vertex 222 browserUsed Safari 2010-01-01T00:46:06.678+00:00
+change vertex 222 LocationCityId 1086 2010-01-01T00:46:06.678+00:00
+change vertex 222 language cs;en 2010-01-01T00:46:06.678+00:00

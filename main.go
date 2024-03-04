@@ -43,16 +43,36 @@ func main() {
 	mtModel.CreateSchema()
 	mtModel.ParseInput("test_data.txt")
 
-	rows, _ := mtModel.Query("SELECT * FROM attributes WHERE (vattr ->> 'firstName') = 'Ahmed'")
+	rows := mtModel.GetAliveVertexes("2011-01-01", "2012-02-01")
 	defer rows.Close()
 
-	var id, start string
+	var id string
 	for rows.Next() {
-		err := rows.Scan(&id, &start)
+		err := rows.Scan(&id)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println(id, start)
+		fmt.Println(id)
+	}
+
+	var bday string
+	row := mtModel.QueryRow("SELECT vattr ->> 'firstName' FROM attributes WHERE vid = '111'")
+	err = row.Scan(&bday)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(bday)
+
+	rows, _ = mtModel.Query("SELECT * FROM edges")
+	defer rows.Close()
+
+	var label, source, target, weight, start string
+	for rows.Next() {
+		err := rows.Scan(&label, &source, &target, &weight, &start)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(label, source, target, weight, start)
 	}
 
 }
