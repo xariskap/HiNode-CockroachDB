@@ -33,7 +33,7 @@ func (d Dianode) convertToVertex(timestamp string) Vertex {
 		ver.SetValue(attrName, value)
 	}
 
-	//copy outgoing edges
+	// copy outgoing edges
 	for targetID := range(d.outgoing_edges){
 		for _, edge := range(d.outgoing_edges[targetID]){
 			estart, _ := strconv.Atoi(edge.start)

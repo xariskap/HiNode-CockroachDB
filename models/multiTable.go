@@ -53,7 +53,7 @@ func (mt MultiTable) ExecSQL(sql []string) {
 func (mt MultiTable) ExecSQLConcurrently(sql []string) {
 	var wg sync.WaitGroup
 
-	for _, stmt := range sql {
+	for _, stmnt := range sql {
 		wg.Add(1)
 
 		go func(stmt string) {
@@ -62,37 +62,32 @@ func (mt MultiTable) ExecSQLConcurrently(sql []string) {
 			if _, err := mt.conn.Exec(context.Background(), stmt); err != nil {
 				log.Println(err)
 			}
-		}(stmt)
+		}(stmnt)
 	}
 	wg.Wait()
 }
 
-// ConvertToEdgeList()
-
 func (mt MultiTable) CreateSchema() {
 	// Create the schema using SQL statements
-	sqlStatements := []string{
+	databaseInit := []string{
 		"DROP DATABASE IF EXISTS " + mt.db,
 		"CREATE DATABASE " + mt.db,
 		"USE " + mt.db,
-		"CREATE TABLE vertexes (vid STRING, vstart STRING, vend STRING)",
+		"CREATE TABLE vertices (vid STRING, vstart STRING, vend STRING)",
 		"CREATE TABLE attributes (vid STRING, vattr JSONB)",
-		"CREATE TABLE edges (label STRING, sourceID STRING, targetID STRING, weight STRING, start STRING)",
+		"CREATE TABLE edges (label STRING, sourceID STRING, targetID STRING, weight STRING, estart STRING, eend STRING)",
 	}
 
-
 	//create indexes
-	// sqlStatemetns2 := []string{
-	// 	"CREATE INDEX ON dianode (vid)",
-	// 	"CREATE INDEX ON dianode (start, eend)",
-	// 	"CREATE INDEX ON dianode (vid, start, eend)",
-	// }
+	indexesInit := []string{
+		"CREATE INDEX kakalo ON hinode.vertices (vstart) STORING (vid, vend)",
+	}
 
 	//start := time.Now()
 
-	mt.ExecSQL(sqlStatements)
+	mt.ExecSQL(databaseInit)
 	//fmt.Printf("SQL execution took %s\n", time.Since(start))
-	//mt.ExecSQLConcurrently(sqlStatemetns2)
+	mt.ExecSQLConcurrently(indexesInit)
 	//fmt.Printf("\nSQL execution took %s\n", time.Since(start))
 
 }
@@ -101,27 +96,27 @@ func (mt MultiTable) insertVertex(vid, vstart string) {
 	var s, e string
 
 	// search for a vertex with a higher end time than the provided start time
-	err := mt.QueryRow("SELECT vstart, vend FROM vertexes WHERE vid = $1 AND vend >= $2 ORDER BY vend ASC", vid, vstart).Scan(&s, &e)
+	err := mt.QueryRow("SELECT vstart, vend FROM vertices WHERE vid = $1 AND vend >= $2 ORDER BY vend ASC", vid, vstart).Scan(&s, &e)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal(err)
 	}
 
 	// if vertex is found, update it
 	if e != "" {
-		if err := mt.ExecQuery("UPDATE vertexes SET vend = $1 WHERE vid = $2 AND vstart = $3", vstart, vid, s); err != nil {
+		if err := mt.ExecQuery("UPDATE vertices SET vend = $1 WHERE vid = $2 AND vstart = $3", vstart, vid, s); err != nil {
 			log.Fatal("Failed to update vertex: ", err)
 		}
 	}
 
 	// insert new vertex
-	err = mt.ExecQuery("INSERT INTO vertexes (vid, vstart, vend) VALUES ($1, $2, $3)", vid, vstart, time.Now().Format(time.RFC3339Nano))
+	err = mt.ExecQuery("INSERT INTO vertices (vid, vstart, vend) VALUES ($1, $2, $3)", vid, vstart, time.Now().Format(time.RFC3339Nano))
 	if err != nil {
 		log.Fatal("Failed to insert vertex: ", err)
 	}
 }
 
-func (mt MultiTable) deleteVertex(vID, vEnd string){
-	if err := mt.ExecQuery("UPDATE vertexes SET vend = $1 WHERE vid = $2", vEnd, vID); err != nil {
+func (mt MultiTable) deleteVertex(vID, vEnd string) {
+	if err := mt.ExecQuery("UPDATE vertices SET vend = $1 WHERE vid = $2", vEnd, vID); err != nil {
 		log.Fatal("Failed to update vertex on deletion: ", err)
 	}
 }
@@ -135,10 +130,11 @@ func (mt MultiTable) insertAttribute(vID, label, attr string, interval utils.Int
 	}
 }
 
-func (mt MultiTable) insertEdge(label, source, target, weight, start string){
-	err := mt.ExecQuery("INSERT INTO edges (label, sourceID, targetID, weight, start) VALUES ($1, $2, $3, $4, $5)",label, source, target, weight, start )
-	if err != nil{
-		log.Fatal("Failed to insert edge", err)
+// TODO change eend to time.Now()
+func (mt MultiTable) insertEdge(label, source, target, weight, start string) {
+	err := mt.ExecQuery("INSERT INTO edges (label, sourceID, targetID, weight, estart, eend) VALUES ($1, $2, $3, $4, $5, $6)", label, source, target, weight, start, "2012-01-22T17:53:41.518+00:00")
+	if err != nil {
+		log.Fatal("Failed to insert edge ", err)
 	}
 }
 
@@ -173,13 +169,30 @@ func (mt MultiTable) ParseInput(path string) {
 	}
 }
 
-func (mt MultiTable) GetAliveVertexes(start, end string) pgx.Rows {
-	aliveVertexes, err := mt.Query("SELECT vid FROM vertexes WHERE vstart >= $1 AND vend >= $2", start, end)
+func (mt MultiTable) GetAliveVertices(start, end string) []string {
+	rows, err := mt.Query("SELECT vid FROM vertices WHERE vstart >= $1 AND vend >= $2", start, end)
 	if err != nil && err != pgx.ErrNoRows {
-		log.Fatal("Failed to retrieve alive vertexes:", err)
+		log.Fatal("Failed to retrieve alive vertices:", err)
 	}
 
-	return aliveVertexes
+	var aliveVertices []string
+	var id string
+	for rows.Next() {
+		err := rows.Scan(&id)
+		if err != nil {
+			log.Fatal(err)
+		}
+		aliveVertices = append(aliveVertices, id)
+	}
+	return aliveVertices
 }
 
-// }
+func (mt MultiTable) GetDegreeDistribution(id, start, end string) int{
+	row := mt.QueryRow("SELECT COUNT(targetid) FROM edges WHERE sourceid = $1 AND estart >= $2 AND eend <= $3", id, start, end)
+	var degree int
+	err := row.Scan(&degree)
+	if err != nil{
+		log.Fatal("Could not parse degree: ", err) 
+	}
+	return degree
+}

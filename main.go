@@ -43,17 +43,8 @@ func main() {
 	mtModel.CreateSchema()
 	mtModel.ParseInput("test_data.txt")
 
-	rows := mtModel.GetAliveVertexes("2011-01-01", "2012-02-01")
-	defer rows.Close()
-
-	var id string
-	for rows.Next() {
-		err := rows.Scan(&id)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println(id)
-	}
+	alv := mtModel.GetAliveVertices("2011-01-01", "2012-02-01")
+	fmt.Println(alv)
 
 	var bday string
 	row := mtModel.QueryRow("SELECT vattr ->> 'firstName' FROM attributes WHERE vid = '111'")
@@ -63,16 +54,18 @@ func main() {
 	}
 	fmt.Println(bday)
 
-	rows, _ = mtModel.Query("SELECT * FROM edges")
+	rows, _ := mtModel.Query("SELECT * FROM edges")
 	defer rows.Close()
 
-	var label, source, target, weight, start string
+	var label, source, target, weight, start, end string
 	for rows.Next() {
-		err := rows.Scan(&label, &source, &target, &weight, &start)
+		err := rows.Scan(&label, &source, &target, &weight, &start, &end)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println(label, source, target, weight, start)
+		fmt.Println(label, source, target, weight, start, end)
 	}
+
+	fmt.Println(mtModel.GetDegreeDistribution("111", "2010-01-01", "2012-01-23"))
 
 }
