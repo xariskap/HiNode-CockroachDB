@@ -8,7 +8,7 @@ import (
 
 type Interval struct {
 	value string
-	start string
+	Start string
 	end   string
 }
 
@@ -22,13 +22,13 @@ func NewInterval(value string, start string, end string) Interval {
 }
 
 func (i Interval) String() string {
-	return (fmt.Sprintf("Interval{value: %v, start: %v, end: %v}", i.value, i.start, i.end))
+	return (fmt.Sprintf("Interval{value: %v, start: %v, end: %v}", i.value, i.Start, i.end))
 }
 
 func (i Interval) CompareTo(interv Interval) int {
-	istart, _ := strconv.Atoi(i.start)
+	istart, _ := strconv.Atoi(i.Start)
 	iend, _ := strconv.Atoi(i.end)
-	intervstart, _ := strconv.Atoi(interv.start)
+	intervstart, _ := strconv.Atoi(interv.Start)
 	intervend, _ := strconv.Atoi(interv.end)
 
 	if iend <= intervstart {
@@ -40,7 +40,7 @@ func (i Interval) CompareTo(interv Interval) int {
 }
 
 func (i Interval) Stab(timestamp string) bool {
-	start, _ := strconv.Atoi(i.start)
+	start, _ := strconv.Atoi(i.Start)
 	end, _ := strconv.Atoi(i.end)
 	ts, _ := strconv.Atoi(timestamp)
 

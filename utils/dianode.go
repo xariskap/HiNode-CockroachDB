@@ -33,7 +33,7 @@ func (d Dianode) convertToVertex(timestamp string) Vertex {
 		ver.SetValue(attrName, value)
 	}
 
-	//copy outgoing edges
+	// copy outgoing edges
 	for targetID := range(d.outgoing_edges){
 		for _, edge := range(d.outgoing_edges[targetID]){
 			estart, _ := strconv.Atoi(edge.start)
@@ -125,7 +125,7 @@ func (d *Dianode) Search(attrName, timestamp string) int {
 	}
 
 	index := sort.Search(len(attrList), func(i int) bool {
-		return attrList[i].start >= timestamp
+		return attrList[i].Start >= timestamp
 	})
 
 	if attrList[index].Stab(timestamp) {

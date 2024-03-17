@@ -19,34 +19,34 @@ func NewSingleTable(db string, conn *pgx.Conn) SingleTable {
 	return SingleTable{db, conn}
 }
 
-func (sg SingleTable) GetDatabaseName() string {
-	return sg.db
+func (st SingleTable) GetDatabaseName() string {
+	return st.db
 }
 
 // returns the rows of the given query
-func (sg SingleTable) Query(sql string) pgx.Rows {
-	rows, err := sg.conn.Query(context.Background(), sql)
+func (st SingleTable) Query(sql string) pgx.Rows {
+	rows, err := st.conn.Query(context.Background(), sql)
 	if err != nil{
 		log.Fatal(err)
 	}
 	return rows
 }
 
-func (sg SingleTable) ExecQuery(sql string){
-	if _, err := sg.conn.Exec(context.Background(), sql); err != nil {
+func (st SingleTable) ExecQuery(sql string){
+	if _, err := st.conn.Exec(context.Background(), sql); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func (sg SingleTable) ExecSQL(sql []string) {
+func (st SingleTable) ExecSQL(sql []string) {
 	for _, stmt := range sql {
-		if _, err := sg.conn.Exec(context.Background(), stmt); err != nil {
+		if _, err := st.conn.Exec(context.Background(), stmt); err != nil {
 			log.Fatal(err)
 		}
 	}
 }
 
-func (sg SingleTable) ExecSQLConcurrently(sql []string) {
+func (st SingleTable) ExecSQLConcurrently(sql []string) {
 	var wg sync.WaitGroup
 
 	for _, stmt := range sql {
@@ -55,7 +55,7 @@ func (sg SingleTable) ExecSQLConcurrently(sql []string) {
 		go func(stmt string) {
 			defer wg.Done()
 
-			if _, err := sg.conn.Exec(context.Background(), stmt); err != nil {
+			if _, err := st.conn.Exec(context.Background(), stmt); err != nil {
 				log.Println(err)
 			}
 		}(stmt)
@@ -65,12 +65,12 @@ func (sg SingleTable) ExecSQLConcurrently(sql []string) {
 
 // ConvertToEdgeList()
 
-func (sg SingleTable) CreateSchema() {
+func (st SingleTable) CreateSchema() {
 	// Create the schema using SQL statements
 	sqlStatements := []string{
-		"DROP DATABASE IF EXISTS " + sg.db,
-		"CREATE DATABASE " + sg.db,
-		"USE " + sg.db,
+		"DROP DATABASE IF EXISTS " + st.db,
+		"CREATE DATABASE " + st.db,
+		"USE " + st.db,
 		"CREATE TABLE dianode (vid STRING, start STRING, eend STRING)",
 	}
 
@@ -82,16 +82,16 @@ func (sg SingleTable) CreateSchema() {
 
 	start := time.Now()
 
-	sg.ExecSQL(sqlStatements)
+	st.ExecSQL(sqlStatements)
 	fmt.Printf("SQL execution took %s\n", time.Since(start))
-	sg.ExecSQLConcurrently(sqlStatemetns2)
+	st.ExecSQLConcurrently(sqlStatemetns2)
 	fmt.Printf("\nSQL execution took %s\n", time.Since(start))
 
 }
 
-func (sg SingleTable) GetAllAliveVertices(first, last string) {
+func (st SingleTable) GetAllAliveVertices(first, last string) {
 	
-	rows := sg.Query("SELECT vid, start, eend FROM dianode")
+	rows := st.Query("SELECT vid, start, eend FROM dianode")
 	defer rows.Close()
 	
 

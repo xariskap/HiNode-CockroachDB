@@ -38,31 +38,34 @@ func main() {
 	}
 	defer conn.Close(context.Background())
 
-	model := models.NewMultiTable("hinode", conn)
+	mtModel := models.NewMultiTable("hinode", conn)
 
-	model.CreateSchema()
-	model.ExecQuery("INSERT INTO vertex (vid, vstart, vend) VALUES (1, 4, 10)")
-	erre := model.ExecQuery("INSERT INTO vertex (vid, vstart, vend) VALUES (2, 2020, '2022-12-14T21:11:54.229304359+02:00')")
-	if erre != nil{
-		log.Fatal("Failed to query2: ", err)
-	}
-	model.InsertVertex("2", "2021-12-14T21:11:54.229304359+02:00")
+	mtModel.CreateSchema()
+	mtModel.ParseInput("test_data.txt")
 
-	rows, err := model.Query("SELECT vid, vstart, vend FROM vertex")
-	if err != nil{
-		log.Fatal("Failed to query: ", err)
+	alv := mtModel.GetAliveVertices("2011-01-01", "2012-02-01")
+	fmt.Println(alv)
+
+	var bday string
+	row := mtModel.QueryRow("SELECT vattr ->> 'firstName' FROM attributes WHERE vid = '111'")
+	err = row.Scan(&bday)
+	if err != nil {
+		log.Fatal(err)
 	}
+	fmt.Println(bday)
+
+	rows, _ := mtModel.Query("SELECT * FROM edges")
 	defer rows.Close()
 
-	var id, start, end string
+	var label, source, target, weight, start, end string
 	for rows.Next() {
-		err := rows.Scan(&id, &start, &end)
+		err := rows.Scan(&label, &source, &target, &weight, &start, &end)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println(id, start, end)
+		fmt.Println(label, source, target, weight, start, end)
 	}
-	
 
-	
+	fmt.Println(mtModel.GetDegreeDistribution("111", "2010-01-01", "2012-01-23"))
+
 }
