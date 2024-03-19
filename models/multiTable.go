@@ -80,16 +80,11 @@ func (mt MultiTable) CreateSchema() {
 
 	//create indexes
 	indexesInit := []string{
-		"CREATE INDEX kakalo ON hinode.vertices (vstart) STORING (vid, vend)",
+		"CREATE INDEX vstartIdx ON hinode.vertices (vstart) STORING (vid, vend)",
 	}
 
-	//start := time.Now()
-
 	mt.ExecSQL(databaseInit)
-	//fmt.Printf("SQL execution took %s\n", time.Since(start))
 	mt.ExecSQLConcurrently(indexesInit)
-	//fmt.Printf("\nSQL execution took %s\n", time.Since(start))
-
 }
 
 func (mt MultiTable) insertVertex(vid, vstart string) {
@@ -169,8 +164,15 @@ func (mt MultiTable) ParseInput(path string) {
 	}
 }
 
+// SELECT vid, year FROM(SELECT vid, EXTRACT(YEAR FROM CAST(vstart AS DATE)) as year FROM vertices) WHERE year BETWEEN '2010' AND '2011';
+//
+//	vid | year
+//
+// ------+-------
+//
+//	181 |  2010
 func (mt MultiTable) GetAliveVertices(start, end string) []string {
-	rows, err := mt.Query("SELECT vid FROM vertices WHERE vstart >= $1 AND vend >= $2", start, end)
+	rows, err := mt.Query("SELECT vid FROM vertices WHERE (SUBSTRING(vstart FROM 1 FOR 10) BETWEEN $1 AND $2) OR (SUBSTRING(vend FROM 1 FOR 10) BETWEEN $1 AND $2) OR (SUBSTRING(vstart FROM 1 FOR 10) <= $1 AND SUBSTRING(vend FROM 1 FOR 10) >= $2)", start, end)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve alive vertices:", err)
 	}
@@ -187,12 +189,12 @@ func (mt MultiTable) GetAliveVertices(start, end string) []string {
 	return aliveVertices
 }
 
-func (mt MultiTable) GetDegreeDistribution(id, start, end string) int{
+func (mt MultiTable) GetDegreeDistribution(id, start, end string) int {
 	row := mt.QueryRow("SELECT COUNT(targetid) FROM edges WHERE sourceid = $1 AND estart >= $2 AND eend <= $3", id, start, end)
 	var degree int
 	err := row.Scan(&degree)
-	if err != nil{
-		log.Fatal("Could not parse degree: ", err) 
+	if err != nil {
+		log.Fatal("Could not parse degree: ", err)
 	}
 	return degree
 }

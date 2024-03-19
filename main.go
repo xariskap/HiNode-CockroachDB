@@ -5,31 +5,11 @@ import (
 	"fmt"
 	"hinode/models"
 	"log"
-
+	"time"
 	"github.com/jackc/pgx/v5"
 )
 
 func main() {
-
-	// interval := utils.NewInterval("value1", "0", "5")
-	// interval2 := utils.NewInterval("value2", "10", "15")
-	// interval3 := utils.NewInterval("value3", "15", "20")
-	// var intervalcomb []utils.Interval
-	// intervalcomb = append(intervalcomb, interval2, interval3)
-	// edge := utils.NewEdge("label1", "1", "target1", "0", "10")
-
-	// dianode := utils.NewDianode(
-	// 	"1",
-	// 	"0",
-	// 	"10",
-	// 	map[string][]utils.Interval{"attr1": {interval}},
-	// 	map[string][]utils.Edge{"target1": {edge}},
-	// 	map[string][]utils.Edge{"source1": {edge}},
-	// )
-
-	// dianode.InsertAttribute("attr1", intervalcomb)
-	// fmt.Println(dianode.GetAttributes())
-	// fmt.Println(dianode.GetOutgoingEdges())
 
 	connectionString := "postgresql://root@localhost:26257/defaultdb?sslmode=disable"
 	conn, err := pgx.Connect(context.Background(), connectionString)
@@ -39,33 +19,39 @@ func main() {
 	defer conn.Close(context.Background())
 
 	mtModel := models.NewMultiTable("hinode", conn)
-
 	mtModel.CreateSchema()
-	mtModel.ParseInput("test_data.txt")
 
-	alv := mtModel.GetAliveVertices("2011-01-01", "2012-02-01")
-	fmt.Println(alv)
+	start := time.Now()
+	mtModel.ParseInput("merged_and_sorted_events.txt")
+	parsingTime := time.Since(start)
+	fmt.Println("Time elapsed parsing data: ", parsingTime.Seconds(),"seconds")
 
-	var bday string
-	row := mtModel.QueryRow("SELECT vattr ->> 'firstName' FROM attributes WHERE vid = '111'")
-	err = row.Scan(&bday)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(bday)
+	start = time.Now()
+	mtModel.GetAliveVertices("2011-01-01", "2012-01-01")
+	aliveVerticesTime := time.Since(start)
+	fmt.Println("Time elapsed getting alive vertices:", aliveVerticesTime.Seconds(), "seconds")
+	
 
-	rows, _ := mtModel.Query("SELECT * FROM edges")
-	defer rows.Close()
+	// var bday string
+	// row := mtModel.QueryRow("SELECT vattr ->> 'firstName' FROM attributes WHERE vid = '111'")
+	// err = row.Scan(&bday)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Println(bday)
 
-	var label, source, target, weight, start, end string
-	for rows.Next() {
-		err := rows.Scan(&label, &source, &target, &weight, &start, &end)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println(label, source, target, weight, start, end)
-	}
+	// rows, _ := mtModel.Query("SELECT * FROM edges")
+	// defer rows.Close()
 
-	fmt.Println(mtModel.GetDegreeDistribution("111", "2010-01-01", "2012-01-23"))
+	// var label, source, target, weight, start, end string
+	// for rows.Next() {
+	// 	err := rows.Scan(&label, &source, &target, &weight, &start, &end)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	fmt.Println(label, source, target, weight, start, end)
+	// }
+
+	// fmt.Println(mtModel.GetDegreeDistribution("111", "2010-01-01", "2012-01-23"))
 
 }
