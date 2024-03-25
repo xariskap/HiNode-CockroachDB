@@ -3,6 +3,7 @@ package models
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"hinode/utils"
 	"log"
 	"os"
@@ -73,9 +74,9 @@ func (mt MultiTable) CreateSchema() {
 		"DROP DATABASE IF EXISTS " + mt.db,
 		"CREATE DATABASE " + mt.db,
 		"USE " + mt.db,
-		"CREATE TABLE vertices (vid STRING, vstart STRING, vend STRING)",
-		"CREATE TABLE attributes (vid STRING, vattr JSONB)",
-		"CREATE TABLE edges (label STRING, sourceID STRING, targetID STRING, weight STRING, estart STRING, eend STRING)",
+		"CREATE TABLE vertices (vid STRING, vstart STRING, vlabel STRING, vend STRING)",
+		"CREATE TABLE attributes (aid STRING, alabel STRING, attribute JSONB)",
+		"CREATE TABLE edges (label STRING, sourceid STRING, targetid STRING, weight STRING, estart STRING, eend STRING)",
 	}
 
 	//create indexes
@@ -87,7 +88,7 @@ func (mt MultiTable) CreateSchema() {
 	mt.ExecSQLConcurrently(indexesInit)
 }
 
-func (mt MultiTable) insertVertex(vid, vstart string) {
+func (mt MultiTable) insertVertex(vid, vlabel, vstart string) {
 	var s, e string
 
 	// search for a vertex with a higher end time than the provided start time
@@ -104,7 +105,7 @@ func (mt MultiTable) insertVertex(vid, vstart string) {
 	}
 
 	// insert new vertex
-	err = mt.ExecQuery("INSERT INTO vertices (vid, vstart, vend) VALUES ($1, $2, $3)", vid, vstart, time.Now().Format(time.RFC3339Nano))
+	err = mt.ExecQuery("INSERT INTO vertices (vid, vstart, vlabel, vend) VALUES ($1, $2, $3, $4)", vid, vstart, vlabel, time.Now().Format(time.RFC3339Nano))
 	if err != nil {
 		log.Fatal("Failed to insert vertex: ", err)
 	}
@@ -116,24 +117,23 @@ func (mt MultiTable) deleteVertex(vID, vEnd string) {
 	}
 }
 
-func (mt MultiTable) insertAttribute(vID, label, attr string, interval utils.Interval) {
-	jsonData := utils.AttributeToJSON(vID, label, attr, interval)
+func (mt MultiTable) insertAttribute(id, label, attrlabel, attr string, interval utils.Interval) {
+	jsonData := utils.AttributeToJSON(attrlabel, attr, interval)
 
-	err := mt.ExecQuery("INSERT INTO attributes (vid, vattr) VALUES ($1, $2)", vID, jsonData)
+	err := mt.ExecQuery("INSERT INTO attributes (aid, alabel, attribute) VALUES ($1, $2, $3)", id, label, jsonData)
 	if err != nil {
 		log.Fatal("Failed to insert attribute: ", err)
 	}
 }
 
-// TODO change eend to time.Now()
 func (mt MultiTable) insertEdge(label, source, target, weight, start string) {
-	err := mt.ExecQuery("INSERT INTO edges (label, sourceID, targetID, weight, estart, eend) VALUES ($1, $2, $3, $4, $5, $6)", label, source, target, weight, start, "2012-01-22T17:53:41.518+00:00")
+	err := mt.ExecQuery("INSERT INTO edges (label, sourceid, targetid, weight, estart, eend) VALUES ($1, $2, $3, $4, $5, $6)", label, source, target, weight, start, time.Now().Format(time.RFC3339Nano))
 	if err != nil {
 		log.Fatal("Failed to insert edge ", err)
 	}
 }
 
-func (mt MultiTable) ParseInput(path string) {
+func (mt MultiTable) ImportData(path string) {
 	file, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
@@ -141,27 +141,38 @@ func (mt MultiTable) ParseInput(path string) {
 
 	defer file.Close()
 
+	lineNumber := 0
 	// var vid, vstart string
 	scanner := bufio.NewScanner(file)
+	timeStart := time.Now()
 	for scanner.Scan() {
+		lineNumber++
+		if lineNumber%100000 == 0{
+			fmt.Println("...", lineNumber, time.Since(timeStart).Minutes())
+		}
+
 
 		line := scanner.Text()
 		tokens := strings.Fields(line)
 
-		if strings.HasPrefix(line, "vertex") {
-			mt.insertVertex(tokens[1], tokens[3])
+		if strings.HasPrefix(line, "edge") {
+			mt.insertEdge(tokens[1], tokens[2], tokens[3], "1", tokens[5])
+
+		} else if strings.HasPrefix(line, "Add attribute") {
+			interv := utils.NewInterval(tokens[5], tokens[len(tokens)-1], "2099")
+			mt.insertAttribute(tokens[2], tokens[3], tokens[4], tokens[5], interv)
+
+		} else if strings.HasPrefix(line, "vertex") {
+			mt.insertVertex(tokens[1], tokens[2], tokens[4])
 
 		} else if strings.HasPrefix(line, "delete vertex") {
 			mt.deleteVertex(tokens[2], tokens[3])
 
-		} else if strings.HasPrefix(line, "change vertex") {
-			interv := utils.NewInterval(tokens[4], tokens[5], "2099")
-			mt.insertAttribute(tokens[2], tokens[3], tokens[4], interv)
-
-		} else if strings.HasPrefix(line, "edge") {
-			mt.insertEdge("undefined", tokens[1], tokens[2], "1", tokens[4])
 		}
 	}
+
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Minutes(), "minutes elapsed importing data")
 }
 
 // SELECT vid, year FROM(SELECT vid, EXTRACT(YEAR FROM CAST(vstart AS DATE)) as year FROM vertices) WHERE year BETWEEN '2010' AND '2011';
@@ -172,6 +183,7 @@ func (mt MultiTable) ParseInput(path string) {
 //
 //	181 |  2010
 func (mt MultiTable) GetAliveVertices(start, end string) []string {
+	timeStart := time.Now()
 	rows, err := mt.Query("SELECT vid FROM vertices WHERE (SUBSTRING(vstart FROM 1 FOR 10) BETWEEN $1 AND $2) OR (SUBSTRING(vend FROM 1 FOR 10) BETWEEN $1 AND $2) OR (SUBSTRING(vstart FROM 1 FOR 10) <= $1 AND SUBSTRING(vend FROM 1 FOR 10) >= $2)", start, end)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve alive vertices:", err)
@@ -186,6 +198,8 @@ func (mt MultiTable) GetAliveVertices(start, end string) []string {
 		}
 		aliveVertices = append(aliveVertices, id)
 	}
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Minutes(), "minutes elapsed getting the alive vertices")
 	return aliveVertices
 }
 

@@ -5,9 +5,9 @@ import (
 	"log"
 )
 
-func AttributeToJSON(vID, label, attr string, interval Interval) []byte {
+func AttributeToJSON(attrlabel, attr string, interval Interval) []byte {
 	newAttribute := map[string]interface{}{
-		label:   attr,
+		attrlabel:   attr,
 		"start": interval.Start,
 	}
 
