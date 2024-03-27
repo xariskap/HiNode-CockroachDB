@@ -9,7 +9,7 @@ import (
 )
 
 func GetConnection() *pgx.Conn {
-	connectionString := "postgresql://root@localhost:26257/defaultdb?sslmode=disable"
+	connectionString := "postgresql://root:root@localhost:26257/defaultdb"
 	conn, err := pgx.Connect(context.Background(), connectionString)
 	if err != nil {
 		log.Fatal(err)

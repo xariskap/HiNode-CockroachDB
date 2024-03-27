@@ -74,21 +74,23 @@ func (mt MultiTable) CreateSchema() {
 		"DROP DATABASE IF EXISTS " + mt.db,
 		"CREATE DATABASE " + mt.db,
 		"USE " + mt.db,
-		"CREATE TABLE vertices (vid STRING, vstart STRING, vlabel STRING, vend STRING)",
+		"CREATE TABLE vertices (vid STRING, vstart STRING, vlabel STRING, vend STRING, PRIMARY KEY(vid, vstart))",
 		"CREATE TABLE attributes (aid STRING, alabel STRING, attribute JSONB)",
-		"CREATE TABLE edges (label STRING, sourceid STRING, targetid STRING, weight STRING, estart STRING, eend STRING)",
+		"CREATE TABLE edges (label STRING, sourceid STRING, targetid STRING, weight STRING, estart STRING, eend STRING, PRIMARY KEY(sourceid, targetid, estart))",
 	}
 
 	//create indexes
 	indexesInit := []string{
-		"CREATE INDEX vstartIdx ON hinode.vertices (vstart) STORING (vid, vend)",
+		"CREATE INDEX ON hinode.vertices (vid, vend) STORING (vstart)",
+		"CREATE INDEX ON hinode.edges (sourceid, targetid) STORING (estart)",
+		// "CREATE INDEX ON hinode.attributes (aid) STORING (attribute)",
 	}
 
 	mt.ExecSQL(databaseInit)
 	mt.ExecSQLConcurrently(indexesInit)
 }
 
-func (mt MultiTable) insertVertex(vid, vlabel, vstart string) {
+func (mt MultiTable) insertVertex(vid, vlabel, vstart, timeNow string) {
 	var s, e string
 
 	// search for a vertex with a higher end time than the provided start time
@@ -105,7 +107,7 @@ func (mt MultiTable) insertVertex(vid, vlabel, vstart string) {
 	}
 
 	// insert new vertex
-	err = mt.ExecQuery("INSERT INTO vertices (vid, vstart, vlabel, vend) VALUES ($1, $2, $3, $4)", vid, vstart, vlabel, time.Now().Format(time.RFC3339Nano))
+	err = mt.ExecQuery("INSERT INTO vertices (vid, vstart, vlabel, vend) VALUES ($1, $2, $3, $4)", vid, vstart, vlabel, timeNow)
 	if err != nil {
 		log.Fatal("Failed to insert vertex: ", err)
 	}
@@ -126,8 +128,8 @@ func (mt MultiTable) insertAttribute(id, label, attrlabel, attr string, interval
 	}
 }
 
-func (mt MultiTable) insertEdge(label, source, target, weight, start string) {
-	err := mt.ExecQuery("INSERT INTO edges (label, sourceid, targetid, weight, estart, eend) VALUES ($1, $2, $3, $4, $5, $6)", label, source, target, weight, start, time.Now().Format(time.RFC3339Nano))
+func (mt MultiTable) insertEdge(label, source, target, weight, start, timeNow string) {
+	err := mt.ExecQuery("INSERT INTO edges (label, sourceid, targetid, weight, estart, eend) VALUES ($1, $2, $3, $4, $5, $6)", label, source, target, weight, start, timeNow)
 	if err != nil {
 		log.Fatal("Failed to insert edge ", err)
 	}
@@ -142,28 +144,28 @@ func (mt MultiTable) ImportData(path string) {
 	defer file.Close()
 
 	lineNumber := 0
-	// var vid, vstart string
+	timeNow := time.Now().Format(time.RFC3339Nano)
+
 	scanner := bufio.NewScanner(file)
 	timeStart := time.Now()
 	for scanner.Scan() {
 		lineNumber++
-		if lineNumber%100000 == 0{
+		if lineNumber%100000 == 0 {
 			fmt.Println("...", lineNumber, time.Since(timeStart).Minutes())
 		}
-
 
 		line := scanner.Text()
 		tokens := strings.Fields(line)
 
 		if strings.HasPrefix(line, "edge") {
-			mt.insertEdge(tokens[1], tokens[2], tokens[3], "1", tokens[5])
+			mt.insertEdge(tokens[1], tokens[2], tokens[3], "1", tokens[5], timeNow)
 
 		} else if strings.HasPrefix(line, "Add attribute") {
 			interv := utils.NewInterval(tokens[5], tokens[len(tokens)-1], "2099")
 			mt.insertAttribute(tokens[2], tokens[3], tokens[4], tokens[5], interv)
 
 		} else if strings.HasPrefix(line, "vertex") {
-			mt.insertVertex(tokens[1], tokens[2], tokens[4])
+			mt.insertVertex(tokens[1], tokens[2], tokens[4], timeNow)
 
 		} else if strings.HasPrefix(line, "delete vertex") {
 			mt.deleteVertex(tokens[2], tokens[3])
@@ -182,33 +184,49 @@ func (mt MultiTable) ImportData(path string) {
 // ------+-------
 //
 //	181 |  2010
-func (mt MultiTable) GetAliveVertices(start, end string) []string {
+func (mt MultiTable) GetAliveVertices(start, end string) ([]string, map[string][]string) {
 	timeStart := time.Now()
-	rows, err := mt.Query("SELECT vid FROM vertices WHERE (SUBSTRING(vstart FROM 1 FOR 10) BETWEEN $1 AND $2) OR (SUBSTRING(vend FROM 1 FOR 10) BETWEEN $1 AND $2) OR (SUBSTRING(vstart FROM 1 FOR 10) <= $1 AND SUBSTRING(vend FROM 1 FOR 10) >= $2)", start, end)
+	rows, err := mt.Query("SELECT vid, EXTRACT(YEAR FROM CAST(vstart AS DATE)) FROM vertices WHERE CAST(vstart AS DATE) BETWEEN $1 AND $2 OR CAST(vstart AS DATE) BETWEEN $1 AND $2 OR CAST(vstart AS DATE) <= $1 AND CAST(vstart AS DATE) >= $2", start, end)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve alive vertices:", err)
 	}
 
-	var aliveVertices []string
-	var id string
+	var allAliveVertices []string
+	aliveVertices := make(map[string][]string)
+	var id, year string
 	for rows.Next() {
-		err := rows.Scan(&id)
+		err := rows.Scan(&id, &year)
 		if err != nil {
 			log.Fatal(err)
 		}
-		aliveVertices = append(aliveVertices, id)
+		allAliveVertices = append(allAliveVertices, id)
+		aliveVertices[year] = append(aliveVertices[year], id)
 	}
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Minutes(), "minutes elapsed getting the alive vertices")
-	return aliveVertices
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the alive vertices")
+	return allAliveVertices, aliveVertices
 }
 
-func (mt MultiTable) GetDegreeDistribution(id, start, end string) int {
-	row := mt.QueryRow("SELECT COUNT(targetid) FROM edges WHERE sourceid = $1 AND estart >= $2 AND eend <= $3", id, start, end)
+func (mt MultiTable) GetDegreeDistribution(start, end string) map[string][][2]any {
+	var id, year string
 	var degree int
-	err := row.Scan(&degree)
-	if err != nil {
-		log.Fatal("Could not parse degree: ", err)
+	degreeDistribution := make(map[string][][2]any)
+
+	timeStart := time.Now()
+	rows, err := mt.Query("SELECT sourceid ,COUNT(targetid), EXTRACT(YEAR FROM CAST(estart AS DATE)) FROM edges WHERE CAST(estart AS DATE) BETWEEN $1 AND $2 OR CAST(estart AS DATE) BETWEEN $1 AND $2 OR CAST(estart AS DATE) <= $1 AND CAST(estart AS DATE) >= $2 GROUP BY sourceid,EXTRACT(YEAR FROM CAST(estart AS DATE)) ", start, end)
+	if err != nil && err != pgx.ErrNoRows {
+		log.Fatal("Failed to retrieve vertex degree:", err)
 	}
-	return degree
+
+	for rows.Next() {
+		err = rows.Scan(&id, &degree, &year)
+		if err != nil {
+			log.Fatal("Could not parse degree: ", err)
+		}
+		values := [2]any{year, degree}
+		degreeDistribution[id] = append(degreeDistribution[id], values)
+	}
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution
 }
