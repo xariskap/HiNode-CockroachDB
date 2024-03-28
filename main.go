@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"hinode/db"
 )
@@ -16,12 +15,14 @@ func main() {
 
 	mt := db.USE("hinode", dbConn)
 	_, aliveVertices := mt.GetAliveVertices("2010-01-01", "2024-03-27")
-	for k, v := range(aliveVertices){
+	for k, v := range aliveVertices {
 		fmt.Printf("%s : # of vertices = %d\n", k, len(v))
 	}
 
-	ll := mt.GetDegreeDistribution("2010-01-01", "2024-03-28")
-	fmt.Println(ll["16882"])
-	dbConn.Close(context.Background())
-}
+	// ll := mt.GetDegreeDistribution("2010-01-01", "2024-03-28")
+	// fmt.Println(ll["16882"])
+	// dbConn.Close(context.Background())
 
+	neighborhood := mt.GetOneHopNeighborhood("16882", "2011-01-01")
+	fmt.Println(len(neighborhood))
+}

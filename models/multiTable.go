@@ -213,7 +213,7 @@ func (mt MultiTable) GetDegreeDistribution(start, end string) map[string][][2]an
 	degreeDistribution := make(map[string][][2]any)
 
 	timeStart := time.Now()
-	rows, err := mt.Query("SELECT sourceid ,COUNT(targetid), EXTRACT(YEAR FROM CAST(estart AS DATE)) FROM edges WHERE CAST(estart AS DATE) BETWEEN $1 AND $2 OR CAST(estart AS DATE) BETWEEN $1 AND $2 OR CAST(estart AS DATE) <= $1 AND CAST(estart AS DATE) >= $2 GROUP BY sourceid,EXTRACT(YEAR FROM CAST(estart AS DATE)) ", start, end)
+	rows, err := mt.Query("SELECT sourceid ,COUNT(targetid), EXTRACT(YEAR FROM CAST(estart AS DATE)) FROM edges WHERE CAST(estart AS DATE) BETWEEN $1 AND $2 OR CAST(estart AS DATE) BETWEEN $1 AND $2 OR CAST(estart AS DATE) <= $1 AND CAST(estart AS DATE) >= $2 GROUP BY sourceid,EXTRACT(YEAR FROM CAST(estart AS DATE))", start, end)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve vertex degree:", err)
 	}
@@ -229,4 +229,27 @@ func (mt MultiTable) GetDegreeDistribution(start, end string) map[string][][2]an
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
 	return degreeDistribution
+}
+
+func (mt MultiTable) GetOneHopNeighborhood(vid, end string) []string {
+	var neighborhood []string
+	var targetid string
+
+	timeStart := time.Now()
+	rows, err := mt.Query("SELECT targetid FROM edges WHERE sourceid = $1 AND CAST(estart AS DATE) <= $2", vid, end)
+	if err != nil && err != pgx.ErrNoRows {
+		log.Fatal("Failed to retrieve one hop neighborhood:", err)
+	}
+
+	for rows.Next() {
+		err = rows.Scan(&targetid)
+		if err != nil {
+			log.Fatal("Could not parse target id (one hop neighborhood): ", err)
+		}
+
+		neighborhood = append(neighborhood, targetid)
+	}
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the one hop neighborhood")
+	return neighborhood
 }
