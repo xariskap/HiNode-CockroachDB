@@ -18,7 +18,7 @@ func GetConnection() *pgx.Conn {
 }
 
 func CreateModel(db string, conn *pgx.Conn) *models.MultiTable {
-	mtModel := models.NewMultiTable("hinode", conn)
+	mtModel := models.NewMultiTable(db, conn)
 	mtModel.CreateSchema()
 
 	return &mtModel
