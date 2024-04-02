@@ -82,6 +82,7 @@ func (mt MultiTable) CreateSchema() {
 	//create indexes
 	indexesInit := []string{
 		"CREATE INDEX ON " + mt.db + ".vertices (vid, vend) STORING (vstart)",
+		"CREATE INDEX ON " + mt.db + ".vertices (vstart, vend) STORING(vid)",
 		"CREATE INDEX ON " + mt.db + ".edges (sourceid, targetid) STORING (estart)",
 		"CREATE INDEX ON " + mt.db + ".edges (eend) STORING (sourceid, targetid)",
 	}
@@ -164,17 +165,17 @@ func (mt MultiTable) ImportData(path string) {
 		tokens := strings.Fields(line)
 
 		if strings.HasPrefix(line, "edge") {
-			mt.insertEdge(tokens[1], tokens[2], tokens[3], "1", tokens[5], "2099")
+			mt.insertEdge(tokens[1], tokens[2], tokens[3], "1", tokens[5], "2099-01-01")
 
 		} else if strings.HasPrefix(line, "Add attribute") {
-			interv := utils.NewInterval(tokens[5], tokens[len(tokens)-1], "2099")
+			interv := utils.NewInterval(tokens[5], tokens[len(tokens)-1], "2099-01-01")
 			mt.insertAttribute(tokens[2], tokens[3], tokens[4], tokens[5], interv)
 
 		} else if strings.HasPrefix(line, "vertex") {
-			mt.insertVertex(tokens[1], tokens[2], tokens[4], "2099")
+			mt.insertVertex(tokens[1], tokens[2], tokens[4], "2099-01-01")
 
 		} else if strings.HasPrefix(line, "delete vertex") {
-			mt.deleteVertex(tokens[2], tokens[3])
+			mt.deleteVertex(tokens[2], tokens[4])
 
 		} else if strings.HasPrefix(line, "delete edge") {
 			mt.deleteEdge(tokens[3], tokens[4], tokens[5])
@@ -185,9 +186,52 @@ func (mt MultiTable) ImportData(path string) {
 	fmt.Println(elapsedTime.Minutes(), "minutes elapsed importing data")
 }
 
+func (mt MultiTable) ImportSF3(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer file.Close()
+
+	lineNumber := 0
+
+	scanner := bufio.NewScanner(file)
+	timeStart := time.Now()
+	for scanner.Scan() {
+		lineNumber++
+		if lineNumber%10000 == 0 {
+			fmt.Println("-->", lineNumber, time.Since(timeStart).Minutes())
+		}
+
+		line := scanner.Text()
+		tokens := strings.Fields(line)
+
+		if strings.HasPrefix(line, "edge") {
+			mt.insertEdge("label", tokens[1], tokens[2], "1", tokens[4], "2099-01-01")
+
+		} else if strings.HasPrefix(line, "Add attribute") {
+			interv := utils.NewInterval(tokens[5], tokens[len(tokens)-1], "2099-01-01")
+			mt.insertAttribute(tokens[2], "label", tokens[3], tokens[4], interv)
+
+		} else if strings.HasPrefix(line, "vertex") {
+			mt.insertVertex(tokens[1], "label", tokens[3], "2099-01-01")
+
+		} else if strings.HasPrefix(line, "delete vertex") {
+			mt.deleteVertex(tokens[2], tokens[3])
+
+		} else if strings.HasPrefix(line, "delete edge") {
+			mt.deleteEdge(tokens[2], tokens[3], tokens[4])
+		}
+	}
+
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Minutes(), "minutes elapsed importing SF3")
+}
+
 func (mt MultiTable) GetAliveVertices(start, end string) ([]string, map[string][]string) {
 	timeStart := time.Now()
-	rows, err := mt.Query("SELECT vid, EXTRACT(YEAR FROM CAST(vstart AS DATE)) FROM vertices WHERE CAST(vstart AS DATE) BETWEEN $1 AND $2 OR CAST(vstart AS DATE) BETWEEN $1 AND $2 OR CAST(vstart AS DATE) <= $1 AND CAST(vstart AS DATE) >= $2", start, end)
+	rows, err := mt.Query("SELECT vid, EXTRACT(YEAR FROM DATE(vstart)) FROM vertices WHERE DATE(vstart) <= $2 AND DATE(vend) >= $1", start, end)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve alive vertices:", err)
 	}
@@ -208,35 +252,38 @@ func (mt MultiTable) GetAliveVertices(start, end string) ([]string, map[string][
 	return allAliveVertices, aliveVertices
 }
 
-func (mt MultiTable) GetDegreeDistribution(start, end string) (map[int][][2]any, map[int]int) {
-	var id, year string
+func (mt MultiTable) GetDegreeDistribution(start, end string) map[string]map[int]int {
+	var year string
 	var degree int
-	vertexDegrees := make(map[int][][2]any)
-	degreeDistribution := make(map[int]int)
+	degreeDistribution := make(map[string]map[int]int)
+
 	
 
 	timeStart := time.Now()
-	rows, err := mt.Query("SELECT sourceid ,COUNT(targetid), EXTRACT(YEAR FROM CAST(estart AS DATE)) FROM edges WHERE CAST(estart AS DATE) BETWEEN $1 AND $2 OR CAST(estart AS DATE) BETWEEN $1 AND $2 OR CAST(estart AS DATE) <= $1 AND CAST(estart AS DATE) >= $2 GROUP BY sourceid,EXTRACT(YEAR FROM CAST(estart AS DATE))", start, end)
+	rows, err := mt.Query("SELECT COUNT(targetid), EXTRACT(YEAR FROM CAST(estart AS DATE)) FROM edges WHERE DATE(estart) <= $2 AND DATE(eend) >= $1 GROUP BY sourceid, EXTRACT(YEAR FROM CAST(estart AS DATE))", start, end)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve vertex degree:", err)
 	}
 
 	for rows.Next() {
-		err = rows.Scan(&id, &degree, &year)
+		err = rows.Scan(&degree, &year)
 		if err != nil {
 			log.Fatal("Could not parse degree: ", err)
 		}
-		values := [2]any{id, year}
-		vertexDegrees[degree] = append(vertexDegrees[degree], values)
+		
+		if degreeDistribution[year] == nil {
+			degreeDistribution[year] = make(map[int]int)
+		}
+		degreeDistribution[year][degree] += 1
 	}
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
 
-	for k, v := range(vertexDegrees){
-		degreeDistribution[k] = len(v)
-	}
+	// for k, v := range(vertexDegrees){
+	// 	degreeDistribution[k] = len(v)
+	// }
 
-	return vertexDegrees, degreeDistribution
+	return  degreeDistribution
 }
 
 func (mt MultiTable) GetOneHopNeighborhood(vid, end string) []string {
@@ -244,7 +291,7 @@ func (mt MultiTable) GetOneHopNeighborhood(vid, end string) []string {
 	var targetid string
 
 	timeStart := time.Now()
-	rows, err := mt.Query("SELECT targetid FROM edges WHERE sourceid = $1 AND CAST(estart AS DATE) <= $2", vid, end)
+	rows, err := mt.Query("SELECT targetid FROM edges WHERE sourceid = $1 AND DATE(estart) <= $2", vid, end)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve one hop neighborhood:", err)
 	}
