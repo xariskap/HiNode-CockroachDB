@@ -17,16 +17,30 @@ func GetConnection() *pgx.Conn {
 	return conn
 }
 
-func CreateModel(db string, conn *pgx.Conn) *models.MultiTable {
+func CreateMtModel(db string, conn *pgx.Conn) *models.MultiTable {
 	mtModel := models.NewMultiTable(db, conn)
 	mtModel.CreateSchema()
 
 	return &mtModel
 }
 
-func USE(db string, conn *pgx.Conn) *models.MultiTable {
+func CreateStModel(db string, conn *pgx.Conn) *models.SingleTable {
+	stModel := models.NewSingleTable(db, conn)
+	stModel.CreateSchema()
+
+	return &stModel
+}
+
+func USEmt(db string, conn *pgx.Conn) *models.MultiTable {
 	mtModel := models.NewMultiTable(db, conn)
 	mtModel.ExecQuery("USE " + db)
 	
 	return &mtModel
+}
+
+func USEst(db string, conn *pgx.Conn) *models.SingleTable {
+	stModel := models.NewSingleTable(db, conn)
+	stModel.ExecQuery("USE " + db)
+	
+	return &stModel
 }

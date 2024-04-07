@@ -23,10 +23,6 @@ func NewMultiTable(db string, conn *pgx.Conn) MultiTable {
 	return MultiTable{db, conn}
 }
 
-func (mt MultiTable) GetDatabaseName() string {
-	return mt.db
-}
-
 // returns the rows of the given query
 func (mt MultiTable) Query(sql string, values ...any) (pgx.Rows, error) {
 	rows, err := mt.conn.Query(context.Background(), sql, values...)
@@ -91,7 +87,7 @@ func (mt MultiTable) CreateSchema() {
 	mt.ExecSQLConcurrently(indexesInit)
 }
 
-func (mt MultiTable) insertVertex(vid, vlabel, vstart, year string) {
+func (mt MultiTable) insertVertex(vid, vlabel, vstart, vend string) {
 	var s, e string
 
 	// search for a vertex with a higher end time than the provided start time
@@ -108,7 +104,7 @@ func (mt MultiTable) insertVertex(vid, vlabel, vstart, year string) {
 	}
 
 	// insert new vertex
-	err = mt.ExecQuery("INSERT INTO vertices (vid, vstart, vlabel, vend) VALUES ($1, $2, $3, $4)", vid, vstart, vlabel, year)
+	err = mt.ExecQuery("INSERT INTO vertices (vid, vstart, vlabel, vend) VALUES ($1, $2, $3, $4)", vid, vstart, vlabel, vend)
 	if err != nil {
 		log.Fatal("Failed to insert vertex: ", err)
 	}
@@ -129,8 +125,8 @@ func (mt MultiTable) insertAttribute(id, label, attrlabel, attr string, interval
 	}
 }
 
-func (mt MultiTable) insertEdge(label, source, target, weight, start, year string) {
-	err := mt.ExecQuery("INSERT INTO edges (label, sourceid, targetid, weight, estart, eend) VALUES ($1, $2, $3, $4, $5, $6)", label, source, target, weight, start, year)
+func (mt MultiTable) insertEdge(label, source, target, weight, start, eend string) {
+	err := mt.ExecQuery("INSERT INTO edges (label, sourceid, targetid, weight, estart, eend) VALUES ($1, $2, $3, $4, $5, $6)", label, source, target, weight, start, eend)
 	if err != nil {
 		log.Fatal("Failed to insert edge ", err)
 	}
@@ -186,7 +182,7 @@ func (mt MultiTable) ImportData(path string) {
 	fmt.Println(elapsedTime.Minutes(), "minutes elapsed importing data")
 }
 
-func (mt MultiTable) ImportSF3(path string) {
+func (mt MultiTable) ImportNoLabelData(path string) {
 	file, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
@@ -200,7 +196,7 @@ func (mt MultiTable) ImportSF3(path string) {
 	timeStart := time.Now()
 	for scanner.Scan() {
 		lineNumber++
-		if lineNumber%10000 == 0 {
+		if lineNumber%100000 == 0 {
 			fmt.Println("-->", lineNumber, time.Since(timeStart).Minutes())
 		}
 
@@ -260,7 +256,7 @@ func (mt MultiTable) GetDegreeDistribution(start, end string) map[string]map[int
 	
 
 	timeStart := time.Now()
-	rows, err := mt.Query("SELECT COUNT(targetid), EXTRACT(YEAR FROM CAST(estart AS DATE)) FROM edges WHERE DATE(estart) <= $2 AND DATE(eend) >= $1 GROUP BY sourceid, EXTRACT(YEAR FROM CAST(estart AS DATE))", start, end)
+	rows, err := mt.Query("SELECT COUNT(targetid), EXTRACT(YEAR FROM DATE(estart)) FROM edges WHERE DATE(eend) >= $1 AND DATE(estart) <= $2  GROUP BY sourceid, EXTRACT(YEAR FROM DATE(estart))", start, end)
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve vertex degree:", err)
 	}
@@ -278,10 +274,6 @@ func (mt MultiTable) GetDegreeDistribution(start, end string) map[string]map[int
 	}
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
-
-	// for k, v := range(vertexDegrees){
-	// 	degreeDistribution[k] = len(v)
-	// }
 
 	return  degreeDistribution
 }

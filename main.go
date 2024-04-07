@@ -8,28 +8,31 @@ import (
 
 var dbConn = db.GetConnection()
 
-var dbName = "sf3"
+var dbName = "st_sf10"
 
 func main() {
+	// st := db.CreateStModel(dbName, dbConn)
+	// st.ImportNoLabelData("../hinode_data/merged_and_sorted_eventsSF3.txt")
 
-	//Creating multi table model and importing data
-	// mt := db.CreateModel(dbName, dbConn)
-	// mt.ImportSF3("../hinode_data/merged_and_sorted_eventsSF3.txt")
+	st := db.USEst(dbName, dbConn)
 
-	mt := db.USE(dbName, dbConn)
-	// _, aliveVertices := mt.GetAliveVertices("2010-01-01", "2024-03-27")
-	// for k, v := range aliveVertices {
-	// 	fmt.Printf("%s : # of vertices = %d\n", k, len(v))
-	// }
+	fmt.Print("2010-01-01 - 2010-12-31 -> ")
+	st.GetDegreeDistribution("2010-01-01", "2010-12-31")
 
-	neighborhood16882 := mt.GetOneHopNeighborhood("16882", "2013-12-31")
-	fmt.Println("one hop for 16882: ", len(neighborhood16882))
+	fmt.Print("2010-01-01 - 2011-12-31 -> ")
+	st.GetDegreeDistribution("2010-01-01", "2011-12-31")
 
-	neighborhood5218 := mt.GetOneHopNeighborhood("5218", "2013-12-31")
-	fmt.Println("one hop for 5218: ", len(neighborhood5218))
+	fmt.Print("2010-01-01 - 2012-12-31 -> ")
+	st.GetDegreeDistribution("2010-01-01", "2012-12-31")
 
-	neighborhood := mt.GetOneHopNeighborhood("6597069787743", "2013-12-31")
-	fmt.Println("one hop for 6597069787743: ", len(neighborhood))
+	fmt.Println("one hop for 29190: ")
+	st.GetOneHopNeighborhood("29190", "2013-12-31")
+
+	fmt.Println("one hop for 928: ")
+	st.GetOneHopNeighborhood("928", "2013-12-31")
+
+	fmt.Println("one hop for 38233: ")
+	st.GetOneHopNeighborhood("38233", "2013-12-31")
 
 	dbConn.Close(context.Background())
 }
