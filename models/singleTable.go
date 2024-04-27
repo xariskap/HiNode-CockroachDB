@@ -72,7 +72,7 @@ func (st SingleTable) CreateSchema() {
 	}
 
 	indexesInit := []string{
-		"CREATE INDEX ON " + st.db + ".dianode (vid) STORING (vstart, vend, vlabel, attributes, edge)",
+		"CREATE INDEX ON " + st.db + ".dianode (vid, vstart, vend) STORING (vlabel, attributes, edge)",
 	}
 
 	st.ExecSQL(databaseInit)
@@ -103,7 +103,7 @@ func (st SingleTable) insertVertex(vid, vlabel, vstart, vend string) {
 }
 
 func (st SingleTable) deleteVertex(vid, vend string) {
-	if err := st.ExecQuery("UPDATE dianode SET vend = $1 WHERE vid = $2", vend, vid); err != nil {
+	if err := st.ExecQuery("UPDATE dianode SET vend = $1 WHERE vid = $2 AND vend = (SELECT MAX(vend) FROM vertices WHERE vid = $2)", vend, vid); err != nil {
 		log.Fatal("Failed to delete vertex: ", err)
 	}
 }
@@ -233,8 +233,6 @@ func (st SingleTable) GetDegreeDistribution(start, end string) map[string]map[in
 	var degree int
 	degreeDistribution := make(map[string]map[int]int)
 
-	
-
 	timeStart := time.Now()
 	rows, err := st.Query("SELECT COUNT(edge), EXTRACT(YEAR FROM DATE(edge->>'estart')) FROM dianode WHERE DATE(edge->>'eend') >= $1 AND DATE(edge->>'estart') <= $2  GROUP BY vid, EXTRACT(YEAR FROM DATE(edge->>'estart'))", start, end)
 	if err != nil && err != pgx.ErrNoRows {
@@ -246,7 +244,7 @@ func (st SingleTable) GetDegreeDistribution(start, end string) map[string]map[in
 		if err != nil {
 			log.Fatal("Could not parse degree: ", err)
 		}
-		
+
 		if degreeDistribution[year] == nil {
 			degreeDistribution[year] = make(map[int]int)
 		}
@@ -255,7 +253,7 @@ func (st SingleTable) GetDegreeDistribution(start, end string) map[string]map[in
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
 
-	return  degreeDistribution
+	return degreeDistribution
 }
 
 func (st SingleTable) GetOneHopNeighborhood(vid, end string) ([]string, int) {

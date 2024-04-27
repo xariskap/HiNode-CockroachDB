@@ -1,0 +1,6 @@
+g.addV('Person').vid('1').lifetime('2010-01-01', '2099-01-01')
+g.addV('Person').vid('2').lifetime('2011-01-01', '2099-01-01')
+g.insertE('PersonKnowsPerson', '1', '2').lifetime('2010-01-01', '2099-01-01').weight('1')
+g.addV('Person').vid('1').lifetime('2014-01-01', '2099-01-01')
+g.deleteV('1', '2017-12-01')
+g.deleteE('1', '2', '2012-03-12')
