@@ -31,10 +31,14 @@ GraphTraversalSource.metaClass.deleteE = { String sourceVidValue, String targetV
     delegate.V().has('vid', sourceVidValue).outE().where(inV().has('vid', targetVidValue)).property('end', endValue)
 }
 
+GraphTraversal.metaClass.addA = { String attrName, String attrValue ->
+    delegate.property(attrName, attrValue)
+}
+
 graph = TinkerGraph.open()
 g = graph.traversal()
 
-g.addV('Person').vid('1').lifetime('2010', '2099')
+g.addV('Person').vid('1').lifetime('2010', '2099').addA('firstname', 'xaris')
 g.addV('Person').vid('2').lifetime('2011', '2099')
 
 g.insertE('PersonKnowsPerson', '1', '2').lifetime('2010', '2099').weight('1')

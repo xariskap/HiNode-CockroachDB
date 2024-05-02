@@ -3,7 +3,6 @@ package utils
 import (
 	"encoding/json"
 	"log"
-	"strconv"
 )
 
 func AttributeToJSON(attrlabel, attr string, interval Interval) []byte {
@@ -18,13 +17,4 @@ func AttributeToJSON(attrlabel, attr string, interval Interval) []byte {
 	}
 
 	return JSONattribute
-}
-
-func StrToInt(str string) int {
-	num, err := strconv.Atoi(str)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return num
 }
