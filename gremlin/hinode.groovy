@@ -31,18 +31,17 @@ GraphTraversalSource.metaClass.deleteE = { String sourceVidValue, String targetV
     delegate.V().has('vid', sourceVidValue).outE().where(inV().has('vid', targetVidValue)).property('end', endValue)
 }
 
-GraphTraversal.metaClass.addA = { String attrName, String attrValue ->
-    delegate.property(attrName, attrValue)
+GraphTraversal.metaClass.addA = { String attrName, String attrValue, String start = '2010-01-01', String end = '2099-12-31'->
+    delegate.property(attrName, attrValue,'label', __.label(), 'start', start, 'end', end)
 }
 
 graph = TinkerGraph.open()
 g = graph.traversal()
 
-g.addV('Person').vid('1').lifetime('2010', '2099').addA('firstname', 'xaris')
-g.addV('Person').vid('2').lifetime('2011', '2099')
+g.addV('Person').vid('1').lifetime('2010-01-01', '2099-12-31').addA('color', 'blue', '2010-01-01', '2011-01-01')
+g.addV('Person').vid('2').lifetime('2011-01-01', '2099-12-31')
 
-g.insertE('PersonKnowsPerson', '1', '2').lifetime('2010', '2099').weight('1')
+g.insertE('PersonKnowsPerson', '1', '2').lifetime('2011-01-01', '2012-12-31').weight('1')
 
-g.deleteV('1', '2012')
-g.deleteE('1', '2', '2012')
-
+g.deleteV('1', '2012-12-31')
+g.deleteE('1', '2', '2012-12-31')
