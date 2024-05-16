@@ -10,7 +10,7 @@ GraphTraversal.metaClass.vid = { String vidValue ->
         } else {
             delegate.property('vid', vidValue)
         }
-    } catch (RuntimeException e) {
+    } catch (RuntimeExceptioEMn e) {
         println("Error: ${e.message}")
     }
 }
@@ -31,7 +31,22 @@ GraphTraversalSource.metaClass.deleteE = { String sourceVidValue, String targetV
     delegate.V().has('vid', sourceVidValue).outE().where(inV().has('vid', targetVidValue)).property('end', endValue)
 }
 
-GraphTraversal.metaClass.addA = { String attrName, String attrValue, String start = '2010-01-01', String end = '2099-12-31'->
+GraphTraversal.metaClass.addA = { String attrName, String attrValue, String start = '', String end = ''->
+   if (start.isEmpty()) {
+        s = delegate.bytecode.StepInstructions
+	s.each { inst ->
+	if (inst.getOperator() == 'property' && inst.getArguments()[0] == 'start'){
+	    start = inst.getArguments()[1]
+	}}
+    }
+
+    if (end.isEmpty()) {
+        s = delegate.bytecode.StepInstructions
+	s.each { inst ->
+	if (inst.getOperator() == 'property' && inst.getArguments()[0] == 'end'){
+	    end = inst.getArguments()[1]
+	}}
+    }
     delegate.property(attrName, attrValue,'label', __.label(), 'start', start, 'end', end)
 }
 
@@ -39,7 +54,7 @@ graph = TinkerGraph.open()
 g = graph.traversal()
 
 g.addV('Person').vid('1').lifetime('2010-01-01', '2099-12-31').addA('color', 'blue', '2010-01-01', '2011-01-01')
-g.addV('Person').vid('2').lifetime('2011-01-01', '2099-12-31')
+g.addV('Person').vid('2').lifetime('2011-01-01', '2089-12-31').addA('color', 'red')
 
 g.insertE('PersonKnowsPerson', '1', '2').lifetime('2011-01-01', '2012-12-31').weight('1')
 
