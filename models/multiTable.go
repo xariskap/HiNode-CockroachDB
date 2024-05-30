@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"hinode/gremlin"
 	"hinode/utils"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -132,7 +134,7 @@ func (mt MultiTable) insertEdge(label, source, target, weight, start, eend strin
 	}
 }
 
-func (mt MultiTable) deleteEdge(source, target, eend string){
+func (mt MultiTable) deleteEdge(source, target, eend string) {
 	err := mt.ExecQuery("UPDATE edges SET eend = $3 WHERE sourceid = $1 AND targetid = $2", source, target, eend)
 	if err != nil {
 		log.Fatal("Failed to delete edge ", err)
@@ -248,37 +250,194 @@ func (mt MultiTable) GetAliveVertices(start, end string) ([]string, map[string][
 	return allAliveVertices, aliveVertices
 }
 
-func (mt MultiTable) GetDegreeDistribution(start, end string) map[string]map[int]int {
-	var year string
-	var degree int
-	degreeDistribution := make(map[string]map[int]int)
+func (mt MultiTable) GetDegreeDistribution(start, end string) (map[int]map[int]int, time.Duration) {
+	var estart, eend, degree int
+	var sourceid string
 
-	
-
+	vertexDistribution := make(map[string]map[int]int)
+	degreeDistribution := make(map[int]map[int]int)
 	timeStart := time.Now()
-	rows, err := mt.Query("SELECT COUNT(targetid), EXTRACT(YEAR FROM DATE(estart)) FROM edges WHERE DATE(eend) >= $1 AND DATE(estart) <= $2  GROUP BY sourceid, EXTRACT(YEAR FROM DATE(estart))", start, end)
+	rows, err := mt.Query(`
+	SELECT
+		sourceid,
+	    COUNT(targetid),
+	    EXTRACT(YEAR FROM DATE(estart))::int AS start,
+	    least(EXTRACT(YEAR FROM DATE(eend))::int, EXTRACT(YEAR FROM DATE($2))::int)::int AS end
+	FROM edges WHERE DATE(eend) >= $1 AND DATE(estart) <= $2
+	GROUP BY
+		sourceid,
+		EXTRACT(YEAR FROM DATE(estart)),
+		EXTRACT(YEAR FROM DATE(eend))`, start, end)
+
 	if err != nil && err != pgx.ErrNoRows {
-		log.Fatal("Failed to retrieve vertex degree:", err)
+		log.Fatal("Failed to retrieve degree distribution:", err)
 	}
 
 	for rows.Next() {
-		err = rows.Scan(&degree, &year)
+
+		err = rows.Scan(&sourceid, &degree, &estart, &eend)
 		if err != nil {
 			log.Fatal("Could not parse degree: ", err)
 		}
-		
-		if degreeDistribution[year] == nil {
-			degreeDistribution[year] = make(map[int]int)
+		if _, ok := vertexDistribution[sourceid]; !ok {
+			vertexDistribution[sourceid] = make(map[int]int)
 		}
-		degreeDistribution[year][degree] += 1
+
+		for year := estart; year <= eend; year++ {
+			vertexDistribution[sourceid][year] += degree
+		}
+	}
+
+	for _, v := range vertexDistribution {
+		for year, deg := range v {
+
+			if _, ok := degreeDistribution[year]; !ok {
+				degreeDistribution[year] = make(map[int]int)
+			}
+			degreeDistribution[year][deg]++
+		}
 	}
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
-
-	return  degreeDistribution
+	return degreeDistribution, elapsedTime
 }
 
-func (mt MultiTable) GetOneHopNeighborhood(vid, end string) []string {
+func (mt MultiTable) GetDegreeDistributionOptimized(start, end string) (map[int]map[int]int, time.Duration) {
+	var estart, eend, degree int
+	var sourceid, prevsourceid string
+	vertexDistribution := make(map[int]int)
+	degreeDistribution := make(map[int]map[int]int)
+	timeStart := time.Now()
+	rows, err := mt.Query(`
+	SELECT
+		sourceid,
+	    COUNT(targetid),
+	    EXTRACT(YEAR FROM DATE(estart))::int AS start,
+	    least(EXTRACT(YEAR FROM DATE(eend))::int, EXTRACT(YEAR FROM DATE($2))::int)::int AS end
+	FROM edges WHERE DATE(eend) >= $1 AND DATE(estart) <= $2
+	GROUP BY
+		sourceid,
+		EXTRACT(YEAR FROM DATE(estart)),
+		EXTRACT(YEAR FROM DATE(eend))
+	ORDER BY sourceid ASC`, start, end)
+
+	if err != nil && err != pgx.ErrNoRows {
+		log.Fatal("Failed to retrieve degree distribution:", err)
+	}
+
+	for rows.Next() {
+
+		err = rows.Scan(&sourceid, &degree, &estart, &eend)
+		if err != nil {
+			log.Fatal("Error scanning the rows of degree distribution: ", err)
+		}
+
+		if prevsourceid != sourceid && prevsourceid != "" {
+
+			for k, v := range vertexDistribution {
+				if _, ok := degreeDistribution[k]; !ok {
+					degreeDistribution[k] = make(map[int]int)
+				}
+				degreeDistribution[k][v]++
+			}
+			vertexDistribution = make(map[int]int)
+		}
+
+		for year := estart; year <= eend; year++ {
+			vertexDistribution[year] += degree
+		}
+
+		prevsourceid = sourceid
+	}
+
+	for k, v := range vertexDistribution {
+		if _, ok := degreeDistribution[k]; !ok {
+			degreeDistribution[k] = make(map[int]int)
+		}
+		degreeDistribution[k][v]++
+	}
+
+	elapsedTime := time.Since(timeStart)
+
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution, elapsedTime
+}
+
+func (mt MultiTable) GetDegreeDistributionConcurrently(start, end string) (map[int]map[int]int, time.Duration) {
+	var estart, eend, degree int
+	var sourceid, prevsourceid string
+	vertexDistribution := make(map[int]int)
+	degreeDistribution := make(map[int]map[int]int)
+	timeStart := time.Now()
+	rows, err := mt.Query(`
+	SELECT
+		sourceid,
+	    COUNT(targetid),
+	    EXTRACT(YEAR FROM DATE(estart))::int AS start,
+	    least(EXTRACT(YEAR FROM DATE(eend))::int, EXTRACT(YEAR FROM DATE($2))::int)::int AS end
+	FROM edges WHERE DATE(eend) >= $1 AND DATE(estart) <= $2
+	GROUP BY
+		sourceid,
+		EXTRACT(YEAR FROM DATE(estart)),
+		EXTRACT(YEAR FROM DATE(eend))
+	ORDER BY sourceid ASC`, start, end)
+
+	if err != nil && err != pgx.ErrNoRows {
+		log.Fatal("Failed to retrieve degree distribution:", err)
+	}
+
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+
+	for rows.Next() {
+
+		err = rows.Scan(&sourceid, &degree, &estart, &eend)
+		if err != nil {
+			log.Fatal("Error scanning the rows of degree distribution: ", err)
+		}
+
+		if prevsourceid != sourceid && prevsourceid != "" {
+			mutex.Lock()
+			temp := vertexDistribution
+			mutex.Unlock()
+
+			vertexDistribution = make(map[int]int)
+			wg.Add(1)
+
+			go func(temp map[int]int) {
+				defer wg.Done()
+				mutex.Lock()
+				defer mutex.Unlock()
+				for k, v := range temp {
+					if _, ok := degreeDistribution[k]; !ok {
+						degreeDistribution[k] = make(map[int]int)
+					}
+					degreeDistribution[k][v]++
+				}
+			}(temp)
+		}
+
+		for year := estart; year <= eend; year++ {
+			vertexDistribution[year] += degree
+		}
+
+		prevsourceid = sourceid
+	}
+
+	wg.Wait()
+	for k, v := range vertexDistribution {
+		if _, ok := degreeDistribution[k]; !ok {
+			degreeDistribution[k] = make(map[int]int)
+		}
+		degreeDistribution[k][v]++
+	}
+
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution, elapsedTime
+}
+
+func (mt MultiTable) GetOneHopNeighborhood(vid, end string) ([]string, time.Duration) {
 	var neighborhood []string
 	var targetid string
 
@@ -298,5 +457,88 @@ func (mt MultiTable) GetOneHopNeighborhood(vid, end string) []string {
 	}
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the one hop neighborhood")
-	return neighborhood
+	return neighborhood, elapsedTime
+}
+
+func (mt MultiTable) GetDegreeDistributionFetchAllVertices(instart, inend string) (map[string]map[string]int, time.Duration) {
+	var sourceid, estart, eend string
+	results := make(map[string]map[string]int)
+	vertexDegreeInAllInstances := make(map[string]map[string]int)
+	timeStart := time.Now()
+	rows, err := mt.Query("SELECT sourceid, estart, eend FROM edges WHERE DATE(eend) >= $1 AND DATE(estart) <= $2", instart, inend)
+
+	if err != nil && err != pgx.ErrNoRows {
+		log.Fatal("Failed to retrieve vertex degree:", err)
+	}
+
+	for rows.Next() {
+
+		err = rows.Scan(&sourceid, &estart, &eend)
+		if err != nil {
+			log.Fatal("Could not parse degree: ", err)
+		}
+
+		rowstart, _ := strconv.Atoi(estart[:4])
+		rowend, _ := strconv.Atoi(eend[:4])
+		firstInt, _ := strconv.Atoi(instart[:4])
+		lastInt, _ := strconv.Atoi(inend[:4])
+
+		start := max(rowstart, firstInt)
+		end := min(rowend, lastInt)
+
+		if _, ok := vertexDegreeInAllInstances[sourceid]; !ok {
+			vertexDegreeInAllInstances[sourceid] = make(map[string]int)
+		}
+
+		for i := start; i <= end; i++ {
+			year := strconv.Itoa(i)
+			vertexDegreeInAllInstances[sourceid][year]++
+		}
+	}
+
+	for _, vertices := range vertexDegreeInAllInstances {
+		for year, count := range vertices {
+			if _, ok := results[year]; !ok {
+				results[year] = make(map[string]int)
+			}
+			results[year][strconv.Itoa(count)]++
+		}
+	}
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+
+	return results, elapsedTime
+}
+
+func (mt MultiTable) ImportGremlin(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		data, vattr := gremlin.GremlinParse(line)
+
+		if strings.HasPrefix(line, "g.insertE") {
+			mt.insertEdge(data[0], data[1], data[2], data[3], data[4], data[5])
+
+		} else if strings.HasPrefix(line, "g.addV") {
+			mt.insertVertex(data[0], data[1], data[2], data[3])
+
+			for k, v := range vattr {
+				interv := utils.NewInterval("label", "2010-01-01", "2099-01-01")
+				mt.insertAttribute(data[0], "label", k, v, interv)
+			}
+
+		} else if strings.HasPrefix(line, "g.deleteV") {
+			mt.deleteVertex(data[0], data[1])
+
+		} else if strings.HasPrefix(line, "g.deleteE") {
+			mt.deleteEdge(data[0], data[1], data[2])
+		}
+	}
 }

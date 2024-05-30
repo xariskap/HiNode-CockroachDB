@@ -7,8 +7,8 @@ import (
 
 func AttributeToJSON(attrlabel, attr string, interval Interval) []byte {
 	newAttribute := map[string]interface{}{
-		attrlabel:   attr,
-		"start": interval.Start,
+		attrlabel: attr,
+		"start":   interval.Start,
 	}
 
 	JSONattribute, err := json.Marshal(newAttribute)

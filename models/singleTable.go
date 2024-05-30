@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -72,7 +73,8 @@ func (st SingleTable) CreateSchema() {
 	}
 
 	indexesInit := []string{
-		"CREATE INDEX ON " + st.db + ".dianode (vid) STORING (vstart, vend, vlabel, attributes, edge)",
+		"CREATE INDEX ON " + st.db + ".dianode (vid, vstart, vend) STORING (vlabel, attributes)",
+		"CREATE INVERTED INDEX ON " + st.db + ".dianode (edge)",
 	}
 
 	st.ExecSQL(databaseInit)
@@ -228,37 +230,191 @@ func (st SingleTable) ImportNoLabelData(path string) {
 	fmt.Println(elapsedTime.Minutes(), "minutes elapsed importing data")
 }
 
-func (st SingleTable) GetDegreeDistribution(start, end string) map[string]map[int]int {
-	var year string
-	var degree int
-	degreeDistribution := make(map[string]map[int]int)
-
-	
-
+func (st SingleTable) GetDegreeDistribution(start, end string) (map[int]map[int]int, time.Duration) {
+	var estart, eend, degree int
+	var sourceid string
+	vertexDistribution := make(map[string]map[int]int)
+	degreeDistribution := make(map[int]map[int]int)
 	timeStart := time.Now()
-	rows, err := st.Query("SELECT COUNT(edge), EXTRACT(YEAR FROM DATE(edge->>'estart')) FROM dianode WHERE DATE(edge->>'eend') >= $1 AND DATE(edge->>'estart') <= $2  GROUP BY vid, EXTRACT(YEAR FROM DATE(edge->>'estart'))", start, end)
+	rows, err := st.Query(`
+	SELECT
+		vid,                                                                                                                                    
+	    COUNT(edge->>'targetid'),                                     
+	    EXTRACT(YEAR FROM DATE(edge->>'estart'))::int AS start,
+	    least(EXTRACT(YEAR FROM DATE(edge->>'eend'))::int, EXTRACT(YEAR FROM DATE($2))::int)::int AS end
+	FROM dianode WHERE DATE(edge->>'eend') >= $1 AND DATE(edge->>'estart') <= $2
+	GROUP BY
+		vid,
+		EXTRACT(YEAR FROM DATE(edge->>'estart')),
+		EXTRACT(YEAR FROM DATE(edge->>'eend'))`, start, end)
+
 	if err != nil && err != pgx.ErrNoRows {
-		log.Fatal("Failed to retrieve vertex degree:", err)
+		log.Fatal("Failed to retrieve degree distribution:", err)
 	}
 
 	for rows.Next() {
-		err = rows.Scan(&degree, &year)
+		err = rows.Scan(&sourceid, &degree, &estart, &eend)
 		if err != nil {
 			log.Fatal("Could not parse degree: ", err)
 		}
-		
-		if degreeDistribution[year] == nil {
-			degreeDistribution[year] = make(map[int]int)
+		if _, ok := vertexDistribution[sourceid]; !ok {
+			vertexDistribution[sourceid] = make(map[int]int)
 		}
-		degreeDistribution[year][degree] += 1
+
+		for year := estart; year <= eend; year++ {
+			vertexDistribution[sourceid][year] += degree
+		}
+	}
+
+	for _, v := range vertexDistribution {
+		for year, deg := range v {
+
+			if _, ok := degreeDistribution[year]; !ok {
+				degreeDistribution[year] = make(map[int]int)
+			}
+			degreeDistribution[year][deg]++
+		}
 	}
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
-
-	return  degreeDistribution
+	return degreeDistribution, elapsedTime
 }
 
-func (st SingleTable) GetOneHopNeighborhood(vid, end string) ([]string, int) {
+func (st SingleTable) GetDegreeDistributionOptimized(start, end string) (map[int]map[int]int, time.Duration) {
+	var estart, eend, degree int
+	var sourceid, prevsourceid string
+	vertexDistribution := make(map[int]int)
+	degreeDistribution := make(map[int]map[int]int)
+	timeStart := time.Now()
+	rows, err := st.Query(`
+	SELECT
+		vid,
+	    COUNT(edge->>'targetid'),
+	    EXTRACT(YEAR FROM DATE(edge->>'estart'))::int AS start,
+	    least(EXTRACT(YEAR FROM DATE(edge->>'eend'))::int, EXTRACT(YEAR FROM DATE($2))::int)::int AS end
+	FROM dianode WHERE DATE(edge->>'eend') >= $1 AND DATE(edge->>'estart') <= $2
+	GROUP BY
+		vid,
+		EXTRACT(YEAR FROM DATE(edge->>'estart')),
+		EXTRACT(YEAR FROM DATE(edge->>'eend'))
+	ORDER BY vid ASC`, start, end)
+
+	if err != nil && err != pgx.ErrNoRows {
+		log.Fatal("Failed to retrieve degree distribution:", err)
+	}
+
+	for rows.Next() {
+
+		err = rows.Scan(&sourceid, &degree, &estart, &eend)
+		if err != nil {
+			log.Fatal("Error scanning the rows of degree distribution: ", err)
+		}
+
+		if prevsourceid != sourceid && prevsourceid != "" {
+
+			for k, v := range vertexDistribution {
+				if _, ok := degreeDistribution[k]; !ok {
+					degreeDistribution[k] = make(map[int]int)
+				}
+				degreeDistribution[k][v]++
+			}
+			vertexDistribution = make(map[int]int)
+		}
+
+		for year := estart; year <= eend; year++ {
+			vertexDistribution[year] += degree
+		}
+
+		prevsourceid = sourceid
+	}
+
+	for k, v := range vertexDistribution {
+		if _, ok := degreeDistribution[k]; !ok {
+			degreeDistribution[k] = make(map[int]int)
+		}
+		degreeDistribution[k][v]++
+	}
+
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution, elapsedTime
+}
+
+func (st SingleTable) GetDegreeDistributionConcurrently(start, end string) (map[int]map[int]int, time.Duration) {
+	var estart, eend, degree int
+	var sourceid, prevsourceid string
+	vertexDistribution := make(map[int]int)
+	degreeDistribution := make(map[int]map[int]int)
+	timeStart := time.Now()
+	rows, err := st.Query(`
+	SELECT
+		vid,
+	    COUNT(edge->>'targetid'),
+	    EXTRACT(YEAR FROM DATE(edge->>'estart'))::int AS start,
+	    least(EXTRACT(YEAR FROM DATE(edge->>'eend'))::int, EXTRACT(YEAR FROM DATE($2))::int)::int AS end
+	FROM dianode WHERE DATE(edge->>'eend') >= $1 AND DATE(edge->>'estart') <= $2
+	GROUP BY                     
+		vid,
+		EXTRACT(YEAR FROM DATE(edge->>'estart')),
+		EXTRACT(YEAR FROM DATE(edge->>'eend'))
+	ORDER BY vid ASC`, start, end)
+
+	if err != nil && err != pgx.ErrNoRows {
+		log.Fatal("Failed to retrieve degree distribution:", err)
+	}
+
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+
+	for rows.Next() {
+
+		err = rows.Scan(&sourceid, &degree, &estart, &eend)
+		if err != nil {
+			log.Fatal("Error scanning the rows of degree distribution: ", err)
+		}
+
+		if prevsourceid != sourceid && prevsourceid != "" {
+			mutex.Lock()
+			temp := vertexDistribution
+			mutex.Unlock()
+
+			vertexDistribution = make(map[int]int)
+			wg.Add(1)
+
+			go func(temp map[int]int) {
+				defer wg.Done()
+				mutex.Lock()
+				defer mutex.Unlock()
+				for k, v := range temp {
+					if _, ok := degreeDistribution[k]; !ok {
+						degreeDistribution[k] = make(map[int]int)
+					}
+					degreeDistribution[k][v]++
+				}
+			}(temp)
+		}
+
+		for year := estart; year <= eend; year++ {
+			vertexDistribution[year] += degree
+		}
+
+		prevsourceid = sourceid
+	}
+
+	wg.Wait()
+	for k, v := range vertexDistribution {
+		if _, ok := degreeDistribution[k]; !ok {
+			degreeDistribution[k] = make(map[int]int)
+		}
+		degreeDistribution[k][v]++
+	}
+
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and")
+	return degreeDistribution, elapsedTime
+}
+
+func (st SingleTable) GetOneHopNeighborhood(vid, end string) ([]string, time.Duration) {
 	var neighborhood []string
 	var targetid string
 
@@ -278,5 +434,56 @@ func (st SingleTable) GetOneHopNeighborhood(vid, end string) ([]string, int) {
 	}
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the one hop neighborhood")
-	return neighborhood, len(neighborhood)
+	return neighborhood, elapsedTime
+}
+
+func (st SingleTable) GetDegreeDistributionFetchAllVertices(instart, inend string) (map[string]map[string]int, time.Duration) {
+	var sourceid, estart, eend string
+	results := make(map[string]map[string]int)
+	vertexDegreeInAllInstances := make(map[string]map[string]int)
+	var c = 0
+	timeStart := time.Now()
+	rows, err := st.Query("SELECT vid, edge->>'estart', edge->>'eend' FROM dianode WHERE DATE(edge->>'eend') >= $1 AND DATE(edge->>'estart') <= $2", instart, inend)
+
+	if err != nil && err != pgx.ErrNoRows {
+		log.Fatal("Failed to retrieve vertex degree:", err)
+	}
+
+	for rows.Next() {
+		c++
+		err = rows.Scan(&sourceid, &estart, &eend)
+		if err != nil {
+			log.Fatal("Could not parse degree: ", err)
+		}
+
+		rowstart, _ := strconv.Atoi(estart[:4])
+		rowend, _ := strconv.Atoi(eend[:4])
+		firstInt, _ := strconv.Atoi(instart[:4])
+		lastInt, _ := strconv.Atoi(inend[:4])
+
+		start := max(rowstart, firstInt)
+		end := min(rowend, lastInt)
+
+		if _, ok := vertexDegreeInAllInstances[sourceid]; !ok {
+			vertexDegreeInAllInstances[sourceid] = make(map[string]int)
+		}
+
+		for i := start; i <= end; i++ {
+			year := strconv.Itoa(i)
+			vertexDegreeInAllInstances[sourceid][year]++
+		}
+	}
+
+	for _, vertices := range vertexDegreeInAllInstances {
+		for year, count := range vertices {
+			if _, ok := results[year]; !ok {
+				results[year] = make(map[string]int)
+			}
+			results[year][strconv.Itoa(count)]++
+		}
+	}
+	elapsedTime := time.Since(timeStart)
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+
+	return results, elapsedTime
 }

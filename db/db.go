@@ -34,13 +34,13 @@ func CreateStModel(db string, conn *pgx.Conn) *models.SingleTable {
 func USEmt(db string, conn *pgx.Conn) *models.MultiTable {
 	mtModel := models.NewMultiTable(db, conn)
 	mtModel.ExecQuery("USE " + db)
-	
+
 	return &mtModel
 }
 
 func USEst(db string, conn *pgx.Conn) *models.SingleTable {
 	stModel := models.NewSingleTable(db, conn)
 	stModel.ExecQuery("USE " + db)
-	
+
 	return &stModel
 }
