@@ -250,10 +250,10 @@ func (mt MultiTable) GetAliveVertices(start, end string) ([]string, map[string][
 	return allAliveVertices, aliveVertices
 }
 
-func (mt MultiTable) GetDegreeDistribution(start, end string) map[int]map[int]int {
+func (mt MultiTable) GetDegreeDistribution(start, end string) (map[int]map[int]int, time.Duration) {
 	var estart, eend, degree int
 	var sourceid string
-	var c = 0
+
 	vertexDistribution := make(map[string]map[int]int)
 	degreeDistribution := make(map[int]map[int]int)
 	timeStart := time.Now()
@@ -273,9 +273,8 @@ func (mt MultiTable) GetDegreeDistribution(start, end string) map[int]map[int]in
 		log.Fatal("Failed to retrieve degree distribution:", err)
 	}
 
-	afterQ := time.Now()
 	for rows.Next() {
-		c++
+
 		err = rows.Scan(&sourceid, &degree, &estart, &eend)
 		if err != nil {
 			log.Fatal("Could not parse degree: ", err)
@@ -299,11 +298,11 @@ func (mt MultiTable) GetDegreeDistribution(start, end string) map[int]map[int]in
 		}
 	}
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and", time.Since(afterQ).Seconds(), "seconds elapsed processing the data", c, "LINES")
-	return degreeDistribution
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution, elapsedTime
 }
 
-func (mt MultiTable) GetDegreeDistributionOptimized(start, end string) map[int]map[int]int {
+func (mt MultiTable) GetDegreeDistributionOptimized(start, end string) (map[int]map[int]int, time.Duration) {
 	var estart, eend, degree int
 	var sourceid, prevsourceid string
 	vertexDistribution := make(map[int]int)
@@ -320,13 +319,12 @@ func (mt MultiTable) GetDegreeDistributionOptimized(start, end string) map[int]m
 		sourceid,
 		EXTRACT(YEAR FROM DATE(estart)),
 		EXTRACT(YEAR FROM DATE(eend))
-	ORDER BY sourceid DESC`, start, end)
+	ORDER BY sourceid ASC`, start, end)
 
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve degree distribution:", err)
 	}
 
-	afterQ := time.Now()
 	for rows.Next() {
 
 		err = rows.Scan(&sourceid, &degree, &estart, &eend)
@@ -360,11 +358,12 @@ func (mt MultiTable) GetDegreeDistributionOptimized(start, end string) map[int]m
 	}
 
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and", time.Since(afterQ).Seconds(), "seconds elapsed processing the data")
-	return degreeDistribution
+
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution, elapsedTime
 }
 
-func (mt MultiTable) GetDegreeDistributionConcurrently(start, end string) map[int]map[int]int {
+func (mt MultiTable) GetDegreeDistributionConcurrently(start, end string) (map[int]map[int]int, time.Duration) {
 	var estart, eend, degree int
 	var sourceid, prevsourceid string
 	vertexDistribution := make(map[int]int)
@@ -381,7 +380,7 @@ func (mt MultiTable) GetDegreeDistributionConcurrently(start, end string) map[in
 		sourceid,
 		EXTRACT(YEAR FROM DATE(estart)),
 		EXTRACT(YEAR FROM DATE(eend))
-	ORDER BY sourceid DESC`, start, end)
+	ORDER BY sourceid ASC`, start, end)
 
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve degree distribution:", err)
@@ -390,7 +389,6 @@ func (mt MultiTable) GetDegreeDistributionConcurrently(start, end string) map[in
 	var mutex sync.Mutex
 	var wg sync.WaitGroup
 
-	afterQ := time.Now()
 	for rows.Next() {
 
 		err = rows.Scan(&sourceid, &degree, &estart, &eend)
@@ -435,11 +433,11 @@ func (mt MultiTable) GetDegreeDistributionConcurrently(start, end string) map[in
 	}
 
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and", time.Since(afterQ).Seconds(), "seconds elapsed processing the data")
-	return degreeDistribution
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution, elapsedTime
 }
 
-func (mt MultiTable) GetOneHopNeighborhood(vid, end string) []string {
+func (mt MultiTable) GetOneHopNeighborhood(vid, end string) ([]string, time.Duration) {
 	var neighborhood []string
 	var targetid string
 
@@ -459,14 +457,13 @@ func (mt MultiTable) GetOneHopNeighborhood(vid, end string) []string {
 	}
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the one hop neighborhood")
-	return neighborhood
+	return neighborhood, elapsedTime
 }
 
-func (mt MultiTable) GetDegreeDistributionFetchAllVertices(instart, inend string) map[string]map[string]int {
+func (mt MultiTable) GetDegreeDistributionFetchAllVertices(instart, inend string) (map[string]map[string]int, time.Duration) {
 	var sourceid, estart, eend string
 	results := make(map[string]map[string]int)
 	vertexDegreeInAllInstances := make(map[string]map[string]int)
-	var c = 0
 	timeStart := time.Now()
 	rows, err := mt.Query("SELECT sourceid, estart, eend FROM edges WHERE DATE(eend) >= $1 AND DATE(estart) <= $2", instart, inend)
 
@@ -474,9 +471,8 @@ func (mt MultiTable) GetDegreeDistributionFetchAllVertices(instart, inend string
 		log.Fatal("Failed to retrieve vertex degree:", err)
 	}
 
-	afterQ := time.Now()
 	for rows.Next() {
-		c++
+
 		err = rows.Scan(&sourceid, &estart, &eend)
 		if err != nil {
 			log.Fatal("Could not parse degree: ", err)
@@ -509,9 +505,9 @@ func (mt MultiTable) GetDegreeDistributionFetchAllVertices(instart, inend string
 		}
 	}
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and", time.Since(afterQ).Seconds(), "seconds elapsed processing the data", c, "LINES")
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
 
-	return results
+	return results, elapsedTime
 }
 
 func (mt MultiTable) ImportGremlin(path string) {

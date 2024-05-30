@@ -73,7 +73,8 @@ func (st SingleTable) CreateSchema() {
 	}
 
 	indexesInit := []string{
-		"CREATE INDEX ON " + st.db + ".dianode (vid, vstart, vend) STORING (vlabel, attributes, edge)",
+		"CREATE INDEX ON " + st.db + ".dianode (vid, vstart, vend) STORING (vlabel, attributes)",
+		"CREATE INVERTED INDEX ON " + st.db + ".dianode (edge)",
 	}
 
 	st.ExecSQL(databaseInit)
@@ -104,7 +105,7 @@ func (st SingleTable) insertVertex(vid, vlabel, vstart, vend string) {
 }
 
 func (st SingleTable) deleteVertex(vid, vend string) {
-	if err := st.ExecQuery("UPDATE dianode SET vend = $1 WHERE vid = $2 AND vend = (SELECT MAX(vend) FROM vertices WHERE vid = $2)", vend, vid); err != nil {
+	if err := st.ExecQuery("UPDATE dianode SET vend = $1 WHERE vid = $2", vend, vid); err != nil {
 		log.Fatal("Failed to delete vertex: ", err)
 	}
 }
@@ -229,10 +230,9 @@ func (st SingleTable) ImportNoLabelData(path string) {
 	fmt.Println(elapsedTime.Minutes(), "minutes elapsed importing data")
 }
 
-func (st SingleTable) GetDegreeDistribution(start, end string) map[int]map[int]int {
+func (st SingleTable) GetDegreeDistribution(start, end string) (map[int]map[int]int, time.Duration) {
 	var estart, eend, degree int
 	var sourceid string
-	var c = 0
 	vertexDistribution := make(map[string]map[int]int)
 	degreeDistribution := make(map[int]map[int]int)
 	timeStart := time.Now()
@@ -252,9 +252,7 @@ func (st SingleTable) GetDegreeDistribution(start, end string) map[int]map[int]i
 		log.Fatal("Failed to retrieve degree distribution:", err)
 	}
 
-	afterQ := time.Now()
 	for rows.Next() {
-		c++
 		err = rows.Scan(&sourceid, &degree, &estart, &eend)
 		if err != nil {
 			log.Fatal("Could not parse degree: ", err)
@@ -278,11 +276,11 @@ func (st SingleTable) GetDegreeDistribution(start, end string) map[int]map[int]i
 		}
 	}
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and", time.Since(afterQ).Seconds(), "seconds elapsed processing the data", c, "LINES")
-	return degreeDistribution
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution, elapsedTime
 }
 
-func (st SingleTable) GetDegreeDistributionOptimized(start, end string) map[int]map[int]int {
+func (st SingleTable) GetDegreeDistributionOptimized(start, end string) (map[int]map[int]int, time.Duration) {
 	var estart, eend, degree int
 	var sourceid, prevsourceid string
 	vertexDistribution := make(map[int]int)
@@ -299,13 +297,12 @@ func (st SingleTable) GetDegreeDistributionOptimized(start, end string) map[int]
 		vid,
 		EXTRACT(YEAR FROM DATE(edge->>'estart')),
 		EXTRACT(YEAR FROM DATE(edge->>'eend'))
-	ORDER BY vid DESC`, start, end)
+	ORDER BY vid ASC`, start, end)
 
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve degree distribution:", err)
 	}
 
-	afterQ := time.Now()
 	for rows.Next() {
 
 		err = rows.Scan(&sourceid, &degree, &estart, &eend)
@@ -339,11 +336,11 @@ func (st SingleTable) GetDegreeDistributionOptimized(start, end string) map[int]
 	}
 
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and", time.Since(afterQ).Seconds(), "seconds elapsed processing the data")
-	return degreeDistribution
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
+	return degreeDistribution, elapsedTime
 }
 
-func (st SingleTable) GetDegreeDistributionConcurrently(start, end string) map[int]map[int]int {
+func (st SingleTable) GetDegreeDistributionConcurrently(start, end string) (map[int]map[int]int, time.Duration) {
 	var estart, eend, degree int
 	var sourceid, prevsourceid string
 	vertexDistribution := make(map[int]int)
@@ -360,7 +357,7 @@ func (st SingleTable) GetDegreeDistributionConcurrently(start, end string) map[i
 		vid,
 		EXTRACT(YEAR FROM DATE(edge->>'estart')),
 		EXTRACT(YEAR FROM DATE(edge->>'eend'))
-	ORDER BY vid DESC`, start, end)
+	ORDER BY vid ASC`, start, end)
 
 	if err != nil && err != pgx.ErrNoRows {
 		log.Fatal("Failed to retrieve degree distribution:", err)
@@ -369,7 +366,6 @@ func (st SingleTable) GetDegreeDistributionConcurrently(start, end string) map[i
 	var mutex sync.Mutex
 	var wg sync.WaitGroup
 
-	afterQ := time.Now()
 	for rows.Next() {
 
 		err = rows.Scan(&sourceid, &degree, &estart, &eend)
@@ -414,11 +410,11 @@ func (st SingleTable) GetDegreeDistributionConcurrently(start, end string) map[i
 	}
 
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and", time.Since(afterQ).Seconds(), "seconds elapsed processing the data")
-	return degreeDistribution
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and")
+	return degreeDistribution, elapsedTime
 }
 
-func (st SingleTable) GetOneHopNeighborhood(vid, end string) ([]string, int) {
+func (st SingleTable) GetOneHopNeighborhood(vid, end string) ([]string, time.Duration) {
 	var neighborhood []string
 	var targetid string
 
@@ -438,10 +434,10 @@ func (st SingleTable) GetOneHopNeighborhood(vid, end string) ([]string, int) {
 	}
 	elapsedTime := time.Since(timeStart)
 	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the one hop neighborhood")
-	return neighborhood, len(neighborhood)
+	return neighborhood, elapsedTime
 }
 
-func (st SingleTable) GetDegreeDistributionFetchAllVertices(instart, inend string) map[string]map[string]int {
+func (st SingleTable) GetDegreeDistributionFetchAllVertices(instart, inend string) (map[string]map[string]int, time.Duration) {
 	var sourceid, estart, eend string
 	results := make(map[string]map[string]int)
 	vertexDegreeInAllInstances := make(map[string]map[string]int)
@@ -453,7 +449,6 @@ func (st SingleTable) GetDegreeDistributionFetchAllVertices(instart, inend strin
 		log.Fatal("Failed to retrieve vertex degree:", err)
 	}
 
-	afterQ := time.Now()
 	for rows.Next() {
 		c++
 		err = rows.Scan(&sourceid, &estart, &eend)
@@ -488,7 +483,7 @@ func (st SingleTable) GetDegreeDistributionFetchAllVertices(instart, inend strin
 		}
 	}
 	elapsedTime := time.Since(timeStart)
-	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution and", time.Since(afterQ).Seconds(), "seconds elapsed processing the data", c, "LINES")
+	fmt.Println(elapsedTime.Seconds(), "seconds elapsed getting the degree distribution")
 
-	return results
+	return results, elapsedTime
 }
