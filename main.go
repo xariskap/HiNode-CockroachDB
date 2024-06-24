@@ -415,5 +415,5 @@ var dataPath = []string{"../hinode_data/merged_and_sorted_eventsSF3_extended.txt
 
 func main() {
 	insertAllData(mtDBNames, stDBNames, dataPath)
-	//getAllBenchmarks(mtDBNames, stDBNames, 5, oneHop, "2010-01-01")
+	getAllBenchmarks(mtDBNames, stDBNames, 5, oneHop, "2010-01-01")
 }
