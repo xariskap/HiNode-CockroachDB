@@ -4,8 +4,16 @@ import (
 	"context"
 	"fmt"
 	"hinode/db"
+	"runtime"
 	"time"
 )
+
+func PrintMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	fmt.Printf("Heap Alloc = %v MiB", m.HeapAlloc/1024/1024)
+	fmt.Printf("\tTotalAlloc = %v MiB\n", m.TotalAlloc/1024/1024)
+}
 
 func getBenchmarks(mtDBNames, stDBNames []string, iter int, oneHopIDs []string, tstart, tend string) {
 	var dbConn = db.GetConnection()
@@ -33,37 +41,37 @@ func getBenchmarks(mtDBNames, stDBNames []string, iter int, oneHopIDs []string, 
 		}
 		fmt.Println("Avg time: ", (avgTimeDegMTf / time.Duration(iter)).Seconds())
 
-		// var avgTimeDegMT time.Duration
-		// fmt.Println("\nDegree Distribution Multiple Table: ")
-		// for i := 0; i < iter+1; i++ {
+		var avgTimeDegMT time.Duration
+		fmt.Println("\nDegree Distribution Multiple Table: ")
+		for i := 0; i < iter+1; i++ {
 
-		// 	fmt.Print("iteration ", i, ": ")
-		// 	_, time := mt.GetDegreeDistribution(tstart, tend)
-		// 	if i == 0 {
-		// 		fmt.Println("--------------DOES NOT COUNT--------------")
-		// 	}
+			fmt.Print("iteration ", i, ": ")
+			_, time := mt.GetDegreeDistribution(tstart, tend)
+			if i == 0 {
+				fmt.Println("--------------DOES NOT COUNT--------------")
+			}
 
-		// 	if i != 0 {
-		// 		avgTimeDegMT += time
-		// 	}
-		// }
-		// fmt.Println("Avg time: ", (avgTimeDegMT / time.Duration(iter)).Seconds())
+			if i != 0 {
+				avgTimeDegMT += time
+			}
+		}
+		fmt.Println("Avg time: ", (avgTimeDegMT / time.Duration(iter)).Seconds())
 
-		// var avgTimeDegMTl time.Duration
-		// fmt.Println("\nDegree Distribution Less Multiple Table: ")
-		// for i := 0; i < iter+1; i++ {
+		var avgTimeDegMTl time.Duration
+		fmt.Println("\nDegree Distribution Less Multiple Table: ")
+		for i := 0; i < iter+1; i++ {
 
-		// 	fmt.Print("iteration ", i, ": ")
-		// 	_, time := mt.GetDegreeDistribution(tstart, tend)
-		// 	if i == 0 {
-		// 		fmt.Println("--------------DOES NOT COUNT--------------")
-		// 	}
+			fmt.Print("iteration ", i, ": ")
+			_, time := mt.GetDegreeDistribution(tstart, tend)
+			if i == 0 {
+				fmt.Println("--------------DOES NOT COUNT--------------")
+			}
 
-		// 	if i != 0 {
-		// 		avgTimeDegMTl += time
-		// 	}
-		// }
-		// fmt.Println("Avg time: ", (avgTimeDegMTl / time.Duration(iter)).Seconds())
+			if i != 0 {
+				avgTimeDegMTl += time
+			}
+		}
+		fmt.Println("Avg time: ", (avgTimeDegMTl / time.Duration(iter)).Seconds())
 
 		// var avgTimeDegMTc time.Duration
 		// fmt.Println("\nDegree Distribution Conc Multiple Table: ")
@@ -81,276 +89,279 @@ func getBenchmarks(mtDBNames, stDBNames []string, iter int, oneHopIDs []string, 
 		// }
 		// fmt.Println("Avg time: ", (avgTimeDegMTc / time.Duration(iter)).Seconds())
 
-		if i == 1 {
-			var avgTimeHopMT1 time.Duration
-			fmt.Println("\nOne Hop Multi Table on", oneHopIDs[3], ":")
-			for i := 0; i < iter+1; i++ {
+		fmt.Print(i)
+		// if i == 1 {
+		// 	var avgTimeHopMT1 time.Duration
+		// 	fmt.Println("\nOne Hop Multi Table on", oneHopIDs[3], ":")
+		// 	for i := 0; i < iter+1; i++ {
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := mt.GetOneHopNeighborhood(oneHopIDs[3], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+		// 		fmt.Print("iteration ", i, ": ")
+		// 		_, time := mt.GetOneHopNeighborhood(oneHopIDs[3], tend)
+		// 		if i == 0 {
+		// 			fmt.Println("--------------DOES NOT COUNT--------------")
+		// 		}
 
-				if i != 0 {
-					avgTimeHopMT1 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopMT1 / time.Duration(iter)).Seconds())
+		// 		if i != 0 {
+		// 			avgTimeHopMT1 += time
+		// 		}
+		// 	}
+		// 	fmt.Println("Avg time: ", (avgTimeHopMT1 / time.Duration(iter)).Seconds())
 
-			var avgTimeHopMT2 time.Duration
-			fmt.Println("\nOne Hop Multi Table on", oneHopIDs[4], ":")
-			for i := 0; i < iter+1; i++ {
+		// 	var avgTimeHopMT2 time.Duration
+		// 	fmt.Println("\nOne Hop Multi Table on", oneHopIDs[4], ":")
+		// 	for i := 0; i < iter+1; i++ {
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := mt.GetOneHopNeighborhood(oneHopIDs[4], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+		// 		fmt.Print("iteration ", i, ": ")
+		// 		_, time := mt.GetOneHopNeighborhood(oneHopIDs[4], tend)
+		// 		if i == 0 {
+		// 			fmt.Println("--------------DOES NOT COUNT--------------")
+		// 		}
 
-				if i != 0 {
-					avgTimeHopMT2 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopMT2 / time.Duration(iter)).Seconds())
+		// 		if i != 0 {
+		// 			avgTimeHopMT2 += time
+		// 		}
+		// 	}
+		// 	fmt.Println("Avg time: ", (avgTimeHopMT2 / time.Duration(iter)).Seconds())
 
-			var avgTimeHopMT3 time.Duration
-			fmt.Println("\nOne Hop Multi Table on", oneHopIDs[5], ":")
-			for i := 0; i < iter+1; i++ {
+		// 	var avgTimeHopMT3 time.Duration
+		// 	fmt.Println("\nOne Hop Multi Table on", oneHopIDs[5], ":")
+		// 	for i := 0; i < iter+1; i++ {
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := mt.GetOneHopNeighborhood(oneHopIDs[5], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+		// 		fmt.Print("iteration ", i, ": ")
+		// 		_, time := mt.GetOneHopNeighborhood(oneHopIDs[5], tend)
+		// 		if i == 0 {
+		// 			fmt.Println("--------------DOES NOT COUNT--------------")
+		// 		}
 
-				if i != 0 {
-					avgTimeHopMT3 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopMT3 / time.Duration(iter)).Seconds())
-		} else {
-			var avgTimeHopMT1 time.Duration
-			fmt.Println("\nOne Hop Multi Table on", oneHopIDs[0], ":")
-			for i := 0; i < iter+1; i++ {
+		// 		if i != 0 {
+		// 			avgTimeHopMT3 += time
+		// 		}
+		// 	}
+		// 	fmt.Println("Avg time: ", (avgTimeHopMT3 / time.Duration(iter)).Seconds())
+		// } else {
+		// 	var avgTimeHopMT1 time.Duration
+		// 	fmt.Println("\nOne Hop Multi Table on", oneHopIDs[0], ":")
+		// 	for i := 0; i < iter+1; i++ {
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := mt.GetOneHopNeighborhood(oneHopIDs[0], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+		// 		fmt.Print("iteration ", i, ": ")
+		// 		_, time := mt.GetOneHopNeighborhood(oneHopIDs[0], tend)
+		// 		if i == 0 {
+		// 			fmt.Println("--------------DOES NOT COUNT--------------")
+		// 		}
 
-				if i != 0 {
-					avgTimeHopMT1 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopMT1 / time.Duration(iter)).Seconds())
+		// 		if i != 0 {
+		// 			avgTimeHopMT1 += time
+		// 		}
+		// 	}
+		// 	fmt.Println("Avg time: ", (avgTimeHopMT1 / time.Duration(iter)).Seconds())
 
-			var avgTimeHopMT2 time.Duration
-			fmt.Println("\nOne Hop Multi Table on", oneHopIDs[1], ":")
-			for i := 0; i < iter+1; i++ {
+		// 	var avgTimeHopMT2 time.Duration
+		// 	fmt.Println("\nOne Hop Multi Table on", oneHopIDs[1], ":")
+		// 	for i := 0; i < iter+1; i++ {
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := mt.GetOneHopNeighborhood(oneHopIDs[1], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+		// 		fmt.Print("iteration ", i, ": ")
+		// 		_, time := mt.GetOneHopNeighborhood(oneHopIDs[1], tend)
+		// 		if i == 0 {
+		// 			fmt.Println("--------------DOES NOT COUNT--------------")
+		// 		}
 
-				if i != 0 {
-					avgTimeHopMT2 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopMT2 / time.Duration(iter)).Seconds())
+		// 		if i != 0 {
+		// 			avgTimeHopMT2 += time
+		// 		}
+		// 	}
+		// 	fmt.Println("Avg time: ", (avgTimeHopMT2 / time.Duration(iter)).Seconds())
 
-			var avgTimeHopMT3 time.Duration
-			fmt.Println("\nOne Hop Multi Table on", oneHopIDs[2], ":")
-			for i := 0; i < iter+1; i++ {
+		// 	var avgTimeHopMT3 time.Duration
+		// 	fmt.Println("\nOne Hop Multi Table on", oneHopIDs[2], ":")
+		// 	for i := 0; i < iter+1; i++ {
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := mt.GetOneHopNeighborhood(oneHopIDs[2], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+		// 		fmt.Print("iteration ", i, ": ")
+		// 		_, time := mt.GetOneHopNeighborhood(oneHopIDs[2], tend)
+		// 		if i == 0 {
+		// 			fmt.Println("--------------DOES NOT COUNT--------------")
+		// 		}
 
-				if i != 0 {
-					avgTimeHopMT3 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopMT3 / time.Duration(iter)).Seconds())
-		}
+		// 		if i != 0 {
+		// 			avgTimeHopMT3 += time
+		// 		}
+		// 	}
+		// 	fmt.Println("Avg time: ", (avgTimeHopMT3 / time.Duration(iter)).Seconds())
+		// }
 
 		fmt.Println("----------------DONE WITH DATASET", mtdbname, "--------------------------------------")
 	}
 
 	fmt.Println("---------------------------------------------------------------------------------")
 
-	for i, stdbname := range stDBNames {
-		st := db.USEst(stdbname, dbConnst)
+	// for i, stdbname := range stDBNames {
+	// 	st := db.USEst(stdbname, dbConnst)
 
-		var avgTimeDegSTf time.Duration
-		fmt.Println("Degree Distribution Fetch All Single Table: ")
-		for i := 0; i < iter+1; i++ {
+	// 	var avgTimeDegSTf time.Duration
+	// 	fmt.Println("Degree Distribution Fetch All Single Table: ")
+	// 	for i := 0; i < iter+1; i++ {
 
-			fmt.Print("iteration ", i, ": ")
-			_, time := st.GetDegreeDistributionFetchAllVertices(tstart, tend)
-			if i == 0 {
-				fmt.Println("--------------DOES NOT COUNT--------------")
-			}
+	// 		fmt.Print("iteration ", i, ": ")
+	// 		_, time := st.GetDegreeDistributionFetchAllVertices(tstart, tend)
+	// 		if i == 0 {
+	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 		}
 
-			if i != 0 {
-				avgTimeDegSTf += time
-			}
-		}
-		fmt.Println("Avg time: ", (avgTimeDegSTf / time.Duration(iter)).Seconds())
+	// 		if i != 0 {
+	// 			avgTimeDegSTf += time
+	// 		}
+	// 	}
+	// 	fmt.Println("Avg time: ", (avgTimeDegSTf / time.Duration(iter)).Seconds())
 
-		// var avgTimeDegST time.Duration
-		// fmt.Println("\nDegree Distribution Single Table: ")
-		// for i := 0; i < iter+1; i++ {
+	// 	var avgTimeDegST time.Duration
+	// 	fmt.Println("\nDegree Distribution Single Table: ")
+	// 	for i := 0; i < iter+1; i++ {
 
-		// 	fmt.Print("iteration ", i, ": ")
-		// 	_, time := st.GetDegreeDistribution(tstart, tend)
-		// 	if i == 0 {
-		// 		fmt.Println("--------------DOES NOT COUNT--------------")
-		// 	}
+	// 		fmt.Print("iteration ", i, ": ")
+	// 		_, time := st.GetDegreeDistribution(tstart, tend)
+	// 		if i == 0 {
+	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 		}
 
-		// 	if i != 0 {
-		// 		avgTimeDegST += time
-		// 	}
-		// }
-		// fmt.Println("Avg time: ", (avgTimeDegST / time.Duration(iter)).Seconds())
+	// 		if i != 0 {
+	// 			avgTimeDegST += time
+	// 		}
+	// 	}
+	// 	fmt.Println("Avg time: ", (avgTimeDegST / time.Duration(iter)).Seconds())
 
-		// var avgTimeDegSTl time.Duration
-		// fmt.Println("\nDegree Distribution Less Single Table: ")
-		// for i := 0; i < iter+1; i++ {
+	// 	var avgTimeDegSTl time.Duration
+	// 	fmt.Println("\nDegree Distribution Less Single Table: ")
+	// 	for i := 0; i < iter+1; i++ {
 
-		// 	fmt.Print("iteration ", i, ": ")
-		// 	_, time := st.GetDegreeDistributionOptimized(tstart, tend)
-		// 	if i == 0 {
-		// 		fmt.Println("--------------DOES NOT COUNT--------------")
-		// 	}
+	// 		fmt.Print("iteration ", i, ": ")
+	// 		_, time := st.GetDegreeDistributionOptimized(tstart, tend)
+	// 		if i == 0 {
+	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 		}
 
-		// 	if i != 0 {
-		// 		avgTimeDegSTl += time
-		// 	}
-		// }
-		// fmt.Println("Avg time: ", (avgTimeDegSTl / time.Duration(iter)).Seconds())
+	// 		if i != 0 {
+	// 			avgTimeDegSTl += time
+	// 		}
+	// 	}
+	// 	fmt.Println("Avg time: ", (avgTimeDegSTl / time.Duration(iter)).Seconds())
 
-		// var avgTimeDegSTc time.Duration
-		// fmt.Println("\nDegree Distribution Conc Single Table: ")
-		// for i := 0; i < iter+1; i++ {
+	// 	// var avgTimeDegSTc time.Duration
+	// 	// fmt.Println("\nDegree Distribution Conc Single Table: ")
+	// 	// for i := 0; i < iter+1; i++ {
 
-		// 	fmt.Print("iteration ", i, ": ")
-		// 	_, time := st.GetDegreeDistribution(tstart, tend)
-		// 	if i == 0 {
-		// 		fmt.Println("--------------DOES NOT COUNT--------------")
-		// 	}
+	// 	// 	fmt.Print("iteration ", i, ": ")
+	// 	// 	_, time := st.GetDegreeDistribution(tstart, tend)
+	// 	// 	if i == 0 {
+	// 	// 		fmt.Println("--------------DOES NOT COUNT--------------")
+	// 	// 	}
 
-		// 	if i != 0 {
-		// 		avgTimeDegSTc += time
-		// 	}
-		// }
-		// fmt.Println("Avg time: ", (avgTimeDegSTc / time.Duration(iter)).Seconds())
+	// 	// 	if i != 0 {
+	// 	// 		avgTimeDegSTc += time
+	// 	// 	}
+	// 	// }
+	// 	// fmt.Println("Avg time: ", (avgTimeDegSTc / time.Duration(iter)).Seconds())
 
-		if i == 1 {
-			var avgTimeHopST1 time.Duration
-			fmt.Println("\nOne Hop Single Table on", oneHopIDs[3], ":")
-			for i := 0; i < iter+1; i++ {
+	// 	fmt.Print(i)
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := st.GetOneHopNeighborhood(oneHopIDs[3], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+	// 	// if i == 1 {
+	// 	// 	var avgTimeHopST1 time.Duration
+	// 	// 	fmt.Println("\nOne Hop Single Table on", oneHopIDs[3], ":")
+	// 	// 	for i := 0; i < iter+1; i++ {
 
-				if i != 0 {
-					avgTimeHopST1 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopST1 / time.Duration(iter)).Seconds())
+	// 	// 		fmt.Print("iteration ", i, ": ")
+	// 	// 		_, time := st.GetOneHopNeighborhood(oneHopIDs[3], tend)
+	// 	// 		if i == 0 {
+	// 	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 	// 		}
 
-			var avgTimeHopST2 time.Duration
-			fmt.Println("\nOne Hop Single Table on", oneHopIDs[4], ":")
-			for i := 0; i < iter+1; i++ {
+	// 	// 		if i != 0 {
+	// 	// 			avgTimeHopST1 += time
+	// 	// 		}
+	// 	// 	}
+	// 	// 	fmt.Println("Avg time: ", (avgTimeHopST1 / time.Duration(iter)).Seconds())
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := st.GetOneHopNeighborhood(oneHopIDs[4], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+	// 	// 	var avgTimeHopST2 time.Duration
+	// 	// 	fmt.Println("\nOne Hop Single Table on", oneHopIDs[4], ":")
+	// 	// 	for i := 0; i < iter+1; i++ {
 
-				if i != 0 {
-					avgTimeHopST2 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopST2 / time.Duration(iter)).Seconds())
+	// 	// 		fmt.Print("iteration ", i, ": ")
+	// 	// 		_, time := st.GetOneHopNeighborhood(oneHopIDs[4], tend)
+	// 	// 		if i == 0 {
+	// 	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 	// 		}
 
-			var avgTimeHopST3 time.Duration
-			fmt.Println("\nOne Hop Single Table on", oneHopIDs[5], ":")
-			for i := 0; i < iter+1; i++ {
+	// 	// 		if i != 0 {
+	// 	// 			avgTimeHopST2 += time
+	// 	// 		}
+	// 	// 	}
+	// 	// 	fmt.Println("Avg time: ", (avgTimeHopST2 / time.Duration(iter)).Seconds())
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := st.GetOneHopNeighborhood(oneHopIDs[5], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+	// 	// 	var avgTimeHopST3 time.Duration
+	// 	// 	fmt.Println("\nOne Hop Single Table on", oneHopIDs[5], ":")
+	// 	// 	for i := 0; i < iter+1; i++ {
 
-				if i != 0 {
-					avgTimeHopST3 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopST3 / time.Duration(iter)).Seconds())
-		} else {
-			var avgTimeHopST1 time.Duration
-			fmt.Println("\nOne Hop Single Table on", oneHopIDs[0], ":")
-			for i := 0; i < iter+1; i++ {
+	// 	// 		fmt.Print("iteration ", i, ": ")
+	// 	// 		_, time := st.GetOneHopNeighborhood(oneHopIDs[5], tend)
+	// 	// 		if i == 0 {
+	// 	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 	// 		}
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := st.GetOneHopNeighborhood(oneHopIDs[0], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+	// 	// 		if i != 0 {
+	// 	// 			avgTimeHopST3 += time
+	// 	// 		}
+	// 	// 	}
+	// 	// 	fmt.Println("Avg time: ", (avgTimeHopST3 / time.Duration(iter)).Seconds())
+	// 	// } else {
+	// 	// 	var avgTimeHopST1 time.Duration
+	// 	// 	fmt.Println("\nOne Hop Single Table on", oneHopIDs[0], ":")
+	// 	// 	for i := 0; i < iter+1; i++ {
 
-				if i != 0 {
-					avgTimeHopST1 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopST1 / time.Duration(iter)).Seconds())
+	// 	// 		fmt.Print("iteration ", i, ": ")
+	// 	// 		_, time := st.GetOneHopNeighborhood(oneHopIDs[0], tend)
+	// 	// 		if i == 0 {
+	// 	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 	// 		}
 
-			var avgTimeHopST2 time.Duration
-			fmt.Println("\nOne Hop Single Table on", oneHopIDs[1], ":")
-			for i := 0; i < iter+1; i++ {
+	// 	// 		if i != 0 {
+	// 	// 			avgTimeHopST1 += time
+	// 	// 		}
+	// 	// 	}
+	// 	// 	fmt.Println("Avg time: ", (avgTimeHopST1 / time.Duration(iter)).Seconds())
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := st.GetOneHopNeighborhood(oneHopIDs[1], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+	// 	// 	var avgTimeHopST2 time.Duration
+	// 	// 	fmt.Println("\nOne Hop Single Table on", oneHopIDs[1], ":")
+	// 	// 	for i := 0; i < iter+1; i++ {
 
-				if i != 0 {
-					avgTimeHopST2 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopST2 / time.Duration(iter)).Seconds())
+	// 	// 		fmt.Print("iteration ", i, ": ")
+	// 	// 		_, time := st.GetOneHopNeighborhood(oneHopIDs[1], tend)
+	// 	// 		if i == 0 {
+	// 	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 	// 		}
 
-			var avgTimeHopST3 time.Duration
-			fmt.Println("\nOne Hop Single Table on", oneHopIDs[2], ":")
-			for i := 0; i < iter+1; i++ {
+	// 	// 		if i != 0 {
+	// 	// 			avgTimeHopST2 += time
+	// 	// 		}
+	// 	// 	}
+	// 	// 	fmt.Println("Avg time: ", (avgTimeHopST2 / time.Duration(iter)).Seconds())
 
-				fmt.Print("iteration ", i, ": ")
-				_, time := st.GetOneHopNeighborhood(oneHopIDs[2], tend)
-				if i == 0 {
-					fmt.Println("--------------DOES NOT COUNT--------------")
-				}
+	// 	// 	var avgTimeHopST3 time.Duration
+	// 	// 	fmt.Println("\nOne Hop Single Table on", oneHopIDs[2], ":")
+	// 	// 	for i := 0; i < iter+1; i++ {
 
-				if i != 0 {
-					avgTimeHopST3 += time
-				}
-			}
-			fmt.Println("Avg time: ", (avgTimeHopST3 / time.Duration(iter)).Seconds())
-		}
+	// 	// 		fmt.Print("iteration ", i, ": ")
+	// 	// 		_, time := st.GetOneHopNeighborhood(oneHopIDs[2], tend)
+	// 	// 		if i == 0 {
+	// 	// 			fmt.Println("--------------DOES NOT COUNT--------------")
+	// 	// 		}
 
-		fmt.Println("----------------DONE WITH DATASET ", stdbname, " --------------------------------------")
-	}
+	// 	// 		if i != 0 {
+	// 	// 			avgTimeHopST3 += time
+	// 	// 		}
+	// 	// 	}
+	// 	// 	fmt.Println("Avg time: ", (avgTimeHopST3 / time.Duration(iter)).Seconds())
+	// 	// }
+
+	// 	fmt.Println("----------------DONE WITH DATASET ", stdbname, " --------------------------------------")
+	// }
 }
 
 func getAllBenchmarks(mtDBNames, stDBNames []string, iter int, oneHopIDs []string, tstart string) {
@@ -374,29 +385,35 @@ func insertAllData(mtDBNames, stDBNames, datasets []string) {
 		mt := db.CreateMtModel(mtdbname, dbConn)
 		if i == 0 {
 			mt.ImportData(datasets[i]) // ONLY FOR SF3EXTENDED
+			fmt.Println("INSERTED DB", mtdbname)
 		} else {
 			mt.ImportNoLabelData(datasets[i]) // SF3 AND SF10
+			fmt.Println("INSERTED DB", mtdbname)
 		}
 
 	}
 
 	// import single table databases
-	for i, stdbname := range stDBNames {
-		st := db.CreateStModel(stdbname, dbConn)
-		if i == 0 {
-			st.ImportData(datasets[i]) // ONLY FOR SF3EXTENDED
-		} else {
-			st.ImportNoLabelData(datasets[i]) // SF3 AND SF10
-		}
-	}
+	// for i, stdbname := range stDBNames {
+	// 	st := db.CreateStModel(stdbname, dbConn)
+	// 	if i == 0 {
+	// 		st.ImportData(datasets[i]) // ONLY FOR SF3EXTENDED
+	//		fmt.Println("INSERTED DB", stdbname)
+	// 	} else {
+	// 		st.ImportNoLabelData(datasets[i]) // SF3 AND SF10
+	//		fmt.Println("INSERTED DB", stdbname)
+	// 	}
+	// }
 }
 
 var mtDBNames = []string{"sf3extended", "sf10", "sf3"}
 var stDBNames = []string{"st_sf3extended", "st_sf10", "st_sf3"}
 var oneHop = []string{"16882", "5218", "6597069787743", "29190", "928", "38233"}
-var dataPath = []string{"../test_data/data1.txt", "../test_data/data2.txt", "../test_data/data3.txt"}
+var dataPath = []string{"../hinode_data/merged_and_sorted_eventsSF3_extended.txt", "../hinode_data/merged_and_sorted_eventsSF10.txt", "../hinode_data/merged_and_sorted_eventsSF3.txt"}
+
+
 
 func main() {
 	insertAllData(mtDBNames, stDBNames, dataPath)
-	getAllBenchmarks(mtDBNames, stDBNames, 5, oneHop, "2010-01-01")
+	//getAllBenchmarks(mtDBNames, stDBNames, 5, oneHop, "2010-01-01")
 }
