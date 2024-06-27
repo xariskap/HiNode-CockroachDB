@@ -10,7 +10,6 @@ import (
 
 func GetConnection() *pgx.Conn {
 	//connectionString := "postgresql://root:root@localhost:26257/defaultdb"
-	connectionString := "postgresql://nepios:iZEMzINeAFQPG-7uOaEZAQ@hinode-10300.7tc.aws-eu-central-1.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full"
 	conn, err := pgx.Connect(context.Background(), connectionString)
 	if err != nil {
 		log.Fatal(err)
